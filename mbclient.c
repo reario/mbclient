@@ -24,7 +24,6 @@
 #include <sysexits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
 #include "gh.h"
 
 modbus_t *mb;
@@ -67,8 +66,8 @@ void logvalue(char *filename, char *message)
   fclose(logfile);
 }
 
-int pulsante(modbus_t *m,int bobina) {
-
+int pulsante(modbus_t *m,int bobina)
+{  
   char errmsg[100];
 
   if ( modbus_write_bit(m,bobina,TRUE) != 1 ) {
@@ -87,6 +86,22 @@ int pulsante(modbus_t *m,int bobina) {
     return -1;
   }
 
+  return 0;
+}
+
+int interruttore(modbus_t *m, int bit, uint16_t dest, uint16_t reg) {
+  /* cambia lo stato del bit "bit" del registro reg */
+  /* se "bit" era 0 va a 1 e viceversa */
+  /* l'XOR (^) fa proprio questo */
+  /* dest è il registro destinazione */
+  /* nel caso OTB dest è il registro delle uscie è cioè 100 */
+  /* reg è il registro con il nuovo valore */
+  /* reg contiene il valore del registro prima di cambiarlo */
+  reg=reg^(1<<bit);
+  
+  if ( modbus_write_register(m,dest,reg) != 1 ) {
+    return -1;
+  }
   return 0;
 }
 
@@ -298,39 +313,68 @@ int main()
 	    
 	    /***********/
 	    // do something with data sent
-	    
+
+	    // OTB gestione transizioni BIT registro ingressi
 	    newvalbit=mb_mapping->tab_registers[OTBDIN];
 	    uint8_t cur;
 	    if (oldvalbit!=newvalbit) {
 	      sprintf(msg,"\tnewval: %i\n",newvalbit);
 	      logvalue(LOG_FILE,msg);
-	      for (cur=0;cur<12;cur++) {
+	      for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
+
+		//--------------------------------
 		if (!CHECK_BIT(oldvalbit,cur) && CHECK_BIT(newvalbit,cur)) {
-		    sprintf(msg,"\tBit num. %i: 0->1\n",cur);
-		    logvalue(LOG_FILE,msg);
-		  }
+		  switch ( cur ) {
+		    case FARI_ESTERNI_IN_SOPRA: {
+		      logvalue(LOG_FILE,"Fari Esterni Sopra\n");
+		      break;
+		    }
+		    case FARI_ESTERNI_IN_SOTTO: {
+		      logvalue(LOG_FILE,"Fari Esterni Sotto\n");
+		      break;
+		    }
+		    case OTB_IN9: {
+		      logvalue(LOG_FILE,"Apertura Totale Cancello\n");
+		      break;
+		    }
+		    case OTB_IN8: {
+		      logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
+		      break;
+		    }
+		    case OTB_IN6: {
+		      break;
+		    }
+		    case OTB_IN5: {
+		      break;
+		    }
+		    case OTB_IN4: {
+		      break;
+		    }
+		    case OTB_IN3: {
+		      break;
+		    }
+		    case OTB_IN2: {
+		      break;
+		    }
+		    case OTB_IN1: {
+		      break;
+		    }
+		    case OTB_IN0: {
+		      break;
+		    }
+		    }		      
+		  // sprintf(msg,"\tBit %s (num. %i): 0->1\n",otbdigitalinputs[cur],cur);
+		  // logvalue(LOG_FILE,msg);
+		}
+		if (CHECK_BIT(oldvalbit,cur) && !CHECK_BIT(newvalbit,cur)) {
+		  //sprintf(msg,"\tBit %s (num. %i): 1->0\n",otbdigitalinputs[cur],cur);
+		  //logvalue(LOG_FILE,msg);
+		}
+		//-------------------------------		
 	      }
 	    }
 	    oldvalbit=newvalbit;
-	    
-	    
-	    /*	    int cur;
-	    for (cur=0; cur<12;cur++) {
-	      //newvalbit=CHECK_BIT( mb_mapping->tab_registers[OTBDIN],OTB_IN9 );
-	      newvalbit=CHECK_BIT( mb_mapping->tab_registers[OTBDIN],cur );
-	      if (!oldvalbit && newvalbit) {
-		sprintf(msg,"\tBit num. %i: 0->1\n",cur);
-		logvalue(LOG_FILE,msg);
-	      }
-	      if (oldvalbit && !newvalbit) {
-		sprintf(msg,"\tBit num. %i: 1->0\n",cur);
-		logvalue(LOG_FILE,msg);
-	      }
-	    }
-	    oldvalbit=newvalbit;
-	    */
 	    /***********/
-	    
 	  }
 	    break;
 	  }
@@ -339,7 +383,7 @@ int main()
 	  /* il client ha chiuso la connessione */
 	  close(current_socket);
 	  FD_CLR(current_socket, &rfds);	
-
+	  
 	  if (current_socket == fdmax) {
 	    fdmax--;
 	  }

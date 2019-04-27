@@ -8,14 +8,10 @@ LIBDIR = /usr/local/lib
 INCDIRPQ = /usr/local/pgsql/include/
 LIBDIRPQ = /usr/local/pgsql/lib/
 
-all: s s1
+all: mbclient
 
-s: s.o
+mbclient: mbclient.o
 	$(CC) -Wall -L${LIBDIRPQ} -L${LIBDIR} -lpq -lmodbus -lm $^ -o $@
-
-s1: s1.o
-	$(CC) -Wall -L${LIBDIRPQ} -L${LIBDIR} -lpq -lmodbus -lm $^ -o $@
-
 
 # vengono costruiti fli object
 .c.o: gh.h
@@ -23,4 +19,4 @@ s1: s1.o
 
 # cancella i file non necessari e pulisce la directory, pronta per una compilazione pulita
 clean :
-	rm -f *~ *.o *.i *.s *.core s s1
+	rm -f *~ *.o *.i *.s *.core s s1 mbclient

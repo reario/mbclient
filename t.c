@@ -10,8 +10,7 @@ int main() {
   
   for (v=16; v-->0;) {
     printf("%i  %i\n",v,1<<v);
-	//printf("%i\t",1<<v);
-
+    //printf("%i\t",1<<v);
   }
   printf("\n");
   return 0;

@@ -51,8 +51,10 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+*~
 t
 s
 s1
+mbclient
 *.log
 *.lock

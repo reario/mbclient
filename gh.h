@@ -39,8 +39,8 @@
 /* MATRICE PLC */
 /***************/
 /* numeri dei registri I/O dove il PLC da remoto scrive i dati del PLC*/
-#define I0_16 65 /* word che contiene lo stato degli input 0-16*/
-#define I16_32 66 /* word che contiene lo stato degli input 16-32 */
+#define I0_15 65 /* word che contiene lo stato degli input 0-16*/
+#define I16_31 66 /* word che contiene lo stato degli input 16-32 */
 #define ITM2 80 /* word che contiene lo stato degli ingressi del modulo di espansione del PLC */
 #define Q0_32 67 /* word che contiene lo stato degli output 0-32*/
 
@@ -67,6 +67,10 @@
 /***************/
 /* MATRICE OTB */
 /***************/
+const char *otbdigitalinputs[] =  {"In0","In1","In2","In3","In4","In5","In6","In7","Apertura Parziale","Apertura Totale","Fari Esteni Sotto","Fari Esterni Sopra"};
+const char *otbdigitaloutputs[] = {"Fari Esterni Sopra","Fari Esterni Sotto","Out2","Out3","Out4","Out5","Out6","out7"};
+#define otbdigitalinputregister 74
+ 
 /* numeri dei registri I/O dove il PLC da remoto scrive i dati dell'OTB */
 #define OTBDIN 74  /* word che contiene lo stato degli input 0-7 dell'OTB*/
 #define OTBAIN1 75 /* word che contiene lo stato dell'input analogico 1 dell'OTB (BAR AUTOCLAVE) */
@@ -74,7 +78,7 @@
 #define OTBDOUT 77 /* word che contiene lo stato degli output 0-7 dell'OTB */
 #define OTBAOUT1 78 /* word che contiene lo stato dell'output analogico 1 dell'OTB */
 #define OTBAOUT2 79 /* word che contiene lo stato dell'output analogico 2 dell'OTB */
-/* REGISTRO INGRESSI OTB (OTN_IN): significato dei singoli BIT del registro (registro di 16 bit) */
+/* REGISTRO INGRESSI OTB (OTN_IN): significato dei singoli BIT del registro n 74 (registro di 16 bit) */
 #define FARI_ESTERNI_IN_SOPRA 11 /* 11-esimo bit dell'ingresso dell'OTB IN11*/
 #define FARI_ESTERNI_IN_SOTTO 10 /* 10-esimo bit dell'ingresso dell'OTB IN10*/
 #define OTB_IN9 9 /* 9-esimo bit dell'ingresso dell'OTB IN09 */
