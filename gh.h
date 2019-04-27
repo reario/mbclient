@@ -1,8 +1,8 @@
 
 
-#define RUNNING_DIR     "/home/reario/mbserver/"
-#define LOCK_FILE       "/home/reario/mbserver/s.lock"
-#define LOG_FILE        "/home/reario/mbserver/s.log"
+#define RUNNING_DIR     "/home/reario/mbclient/"
+#define LOCK_FILE       "/home/reario/mbclient/mbclient.lock"
+#define LOG_FILE        "/home/reario/mbclient/mbclient.log"
 
 #define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
 /*---------------------*/

@@ -19,4 +19,4 @@ mbclient: mbclient.o
 
 # cancella i file non necessari e pulisce la directory, pronta per una compilazione pulita
 clean :
-	rm -f *~ *.o *.i *.s *.core s s1 mbclient
+	rm -f *~ *.o *.i *.s *.core mbclient

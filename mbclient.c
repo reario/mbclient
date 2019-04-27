@@ -13,7 +13,7 @@
 #include <errno.h>
 #include <sys/time.h> 
 #include <time.h>
-
+#include <signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -24,9 +24,16 @@
 #include <sysexits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+
 #include "gh.h"
 
-modbus_t *mb;
+
+modbus_t *ctx = NULL; // listen socket
+modbus_t *mb_plc = NULL;
+modbus_t *mb_otb = NULL;
+
+int s = -1; // main socket
+modbus_mapping_t *mb_mapping = NULL; // registri del server
 
 ///////////////////////////////////////////////////////////////////
 
@@ -126,10 +133,23 @@ void myCleanExit(char * from) {
   unlink(LOCK_FILE);
   
   logvalue(LOG_FILE,"\tChiudo la connessione con PLC e OTB\n");
-  modbus_close(mb);
-
+  modbus_close(mb_plc);
+  modbus_close(mb_otb);
+  
   logvalue(LOG_FILE,"\tLibero la memoria dalle strutture create\n");
-  modbus_free(mb);
+  modbus_free(mb_plc);
+  modbus_close(mb_otb);
+  
+  logvalue(LOG_FILE,"\tChiudo il socket e le strutture del server\n");
+  modbus_mapping_free(mb_mapping);
+
+  if (s != -1) {
+    close(s);
+  }
+  
+  modbus_close(ctx);
+  modbus_free(ctx);
+
   logvalue(LOG_FILE,"Fine.\n");
   logvalue(LOG_FILE,"****************** END **********************\n");
   
@@ -191,11 +211,37 @@ void daemonize()
 
 ///////////////////////////////////////////////////////////////////
 
+//-----------------------------
+void conn() {
+  char errmsg[100];
+  mb_plc = modbus_new_tcp("192.168.1.157",502);
+  mb_otb = modbus_new_tcp("192.168.1.11",502);
+
+  if ( (modbus_connect(mb_plc) == -1 ))
+    {
+      sprintf(errmsg,"ERRORE non riesco a connettermi con il PLC %s\n",modbus_strerror(errno));
+      logvalue(LOG_FILE,errmsg);
+      myCleanExit(errmsg);
+      exit(EXIT_FAILURE);
+    } else {
+    logvalue(LOG_FILE,"\t Connesso con PLC\n");
+  }
+
+  if ( (modbus_connect(mb_otb) == -1))
+    {
+      sprintf(errmsg,"ERRORE non riesco a connettermi con l'OTB. Premature exit [%s]\n",modbus_strerror(errno));
+      logvalue(LOG_FILE,errmsg);
+      myCleanExit(errmsg);
+      exit(EXIT_FAILURE);
+    } else {
+    logvalue(LOG_FILE,"\t Connesso con OTB\n");
+  }
+}
+//-----------------------------
+
 int main()
 {
-  int s = -1;
-  modbus_t *ctx = NULL;
-  modbus_mapping_t *mb_mapping = NULL;
+    
   int rc;
   int retval;
   uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
@@ -210,7 +256,8 @@ int main()
   char msg[100];
   
   daemonize();
-  
+
+  conn();
   ctx = modbus_new_tcp("192.168.1.110", 1502);
   mb_mapping = modbus_mapping_new(200, 0, 200, 0);
   
@@ -392,15 +439,5 @@ int main()
       }
     } /* fine current_socket */
   } /* fine for (;;) */
-  printf("Quit the loop: %s\n", modbus_strerror(errno));
-
-  modbus_mapping_free(mb_mapping);
-  if (s != -1) {
-    close(s);
-  }
-  /* For RTU, skipped by TCP (no TCP connect) */
-  modbus_close(ctx);
-  modbus_free(ctx);
-  
   return 0;
 }
