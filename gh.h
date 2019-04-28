@@ -1,5 +1,8 @@
 
 
+
+
+
 #define RUNNING_DIR     "/home/reario/mbclient/"
 #define LOCK_FILE       "/home/reario/mbclient/mbclient.lock"
 #define LOG_FILE        "/home/reario/mbclient/mbclient.log"
@@ -70,7 +73,31 @@
 const char *otbdigitalinputs[] =  {"In0","In1","In2","In3","In4","In5","In6","In7","Apertura Parziale","Apertura Totale","Fari Esteni Sotto","Fari Esterni Sopra"};
 const char *otbdigitaloutputs[] = {"Fari Esterni Sopra","Fari Esterni Sotto","Out2","Out3","Out4","Out5","Out6","out7"};
 #define otbdigitalinputregister 74
- 
+
+const uint16_t reverseBitMask[] = {32768,16384,8192,4096,2048,1024,512,256,128,64,32,16,8,4,2,1};
+
+
+
+/*
+https://modbus.control.com/thread/1308248409#1308248409
+
+reverseBitMask:array[1..16] of integer = (32768,16384,8192,4096,2048,1024,512,256,128,64,32,16,8,4,2,1);
+
+For the 'and mask' you would send the 'not' of the mask for the bit to change.
+x:=not reverseBitMask[bitNumber];// andMask 
+
+For the 'or mask' you would either send the normal mask for the bit if setting the bit and the 'not' of the mask if clearing the bit.
+if 0->1 then
+  x:=reverseBitMask[bitNumber]                 //set bit, orMask
+ else 
+  x:=not reverseBitMask[bitNumber];    //clear bit, orMask
+
+In the device receiving the command:     
+ holdingRegister[registerAddress]:=(holdingRegister[registerAddress] and andMask) or   (orMask and not andMask);
+
+ */
+
+
 /* numeri dei registri I/O dove il PLC da remoto scrive i dati dell'OTB */
 #define OTBDIN 74  /* word che contiene lo stato degli input 0-7 dell'OTB*/
 #define OTBAIN1 75 /* word che contiene lo stato dell'input analogico 1 dell'OTB (BAR AUTOCLAVE) */
@@ -102,17 +129,3 @@ const char *otbdigitaloutputs[] = {"Fari Esterni Sopra","Fari Esterni Sotto","Ou
 #define OTB_Q7 7 /* 7-esimo bit dell'uscita dell'OTB Q7 */
 
 /*========================================*/
-
-
-/*
-int ts(char * tst, char * fmt) ;
-void logvalue(char *filename, char *message);
-int pulsante(modbus_t *m,int bobina);
-void rotate();
-void myCleanExit(char * from);
-void signal_handler(int sig);
-void daemonize();
-
-extern modbus_t *mb;
-extern modbus_t *mb_otb;
-*/

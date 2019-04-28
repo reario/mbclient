@@ -37,7 +37,10 @@ modbus_mapping_t *mb_mapping = NULL; // registri del server
 
 
 char *printbitssimple16(char *str, int16_t n) {
-  /*dato l'intero n stampa la rappresentazione binaria*/
+
+  // non viene usata
+  // servita solo per delle prove
+  /* dato l'intero n ritorna la rappresentazione binaria nella stringa str */
   uint16_t i;
   //  int j;
   i = (uint16_t)1<<(sizeof(n) * 8 - 1); /* 2^n */
@@ -425,17 +428,6 @@ int main()
 	    
 	    if (oldvalbit!=newvalbit) {
 	      uint8_t cur;
-#ifdef DIFF	      
-	      uint16_t diff;
-	      char str[100];
-	      diff = oldvalbit^newvalbit;	    
-	      sprintf(msg,"\toldval:\t[%i],\t%s\n",oldvalbit,printbitssimple16(str,oldvalbit));
-	      logvalue(LOG_FILE,msg);
-	      sprintf(msg,"\tnewval:\t[%i],\t%s\n",newvalbit,printbitssimple16(str,newvalbit));
-	      logvalue(LOG_FILE,msg);
-	      sprintf(msg,"\tdiff:\t[%i],\t%s\n",diff,printbitssimple16(str,diff));
-	      logvalue(LOG_FILE,msg);
-#endif	    
 	      for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
 		//------------------------------------------------------
 		if (!CHECK_BIT(oldvalbit,cur) && CHECK_BIT(newvalbit,cur)) {
