@@ -278,7 +278,7 @@ int main()
   
   uint16_t oldvalbit=0;
   uint16_t newvalbit=0;
-  char msg[100];
+
   
 #ifdef PIPPO
   printbitssimple16(msg,1);
@@ -421,21 +421,21 @@ int main()
 	    /* OTB */
 	    /* OTB gestione transizioni BIT registro ingressi */
 	    newvalbit=mb_mapping->tab_registers[OTBDIN];
-	    uint8_t cur;
-	    
-	    uint16_t diff;
-	    char str[100];
+
 	    
 	    if (oldvalbit!=newvalbit) {
-	      diff = oldvalbit^newvalbit;
-
+	      uint8_t cur;
+#ifdef DIFF	      
+	      uint16_t diff;
+	      char str[100];
+	      diff = oldvalbit^newvalbit;	    
 	      sprintf(msg,"\toldval:\t[%i],\t%s\n",oldvalbit,printbitssimple16(str,oldvalbit));
 	      logvalue(LOG_FILE,msg);
 	      sprintf(msg,"\tnewval:\t[%i],\t%s\n",newvalbit,printbitssimple16(str,newvalbit));
 	      logvalue(LOG_FILE,msg);
 	      sprintf(msg,"\tdiff:\t[%i],\t%s\n",diff,printbitssimple16(str,diff));
 	      logvalue(LOG_FILE,msg);
-	      
+#endif	    
 	      for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
 		//------------------------------------------------------
 		if (!CHECK_BIT(oldvalbit,cur) && CHECK_BIT(newvalbit,cur)) {
@@ -516,7 +516,7 @@ int main()
 	  }
 	  /*printf("Pulito il socket....\n"); */
 	}
-      }
+	}
     } /* fine current_socket */
   } /* fine for (;;) */
   return 0;
