@@ -35,6 +35,31 @@ modbus_t *mb_otb = NULL;
 int s = -1; // main socket
 modbus_mapping_t *mb_mapping = NULL; // registri del server
 
+
+char *printbitssimple16(char *str, int16_t n) {
+  /*dato l'intero n stampa la rappresentazione binaria*/
+  uint16_t i;
+  //  int j;
+  i = (uint16_t)1<<(sizeof(n) * 8 - 1); /* 2^n */
+  //char str[100];
+  str[0]='\0';
+  
+  /* for (j=15;j>=0;j--) {    */
+  /*   printf(" %2i",j); */
+  /* } */
+  /* printf("\n"); */
+  
+  while (i > 0) {
+    if (n & i)
+      strcat(str,"1");
+    else
+      strcat(str,"0");
+    i >>= 1;
+  }
+  //printf("\n");
+  return str;
+}
+
 ///////////////////////////////////////////////////////////////////
 
 int ts(char * tst, char * fmt)
@@ -255,6 +280,37 @@ int main()
   uint16_t newvalbit=0;
   char msg[100];
   
+#ifdef PIPPO
+  printbitssimple16(msg,1);
+  printf("1 --> %s\n",msg);
+  printbitssimple16(msg,2);
+  printf("2 --> %s\n",msg);
+  printbitssimple16(msg,4);
+  printf("4 --> %s\n",msg);
+  printbitssimple16(msg,8);
+  printf("8 --> %s\n",msg);
+  printbitssimple16(msg,16);
+  printf("16 --> %s\n",msg);
+  printbitssimple16(msg,32);
+  printf("32 --> %s\n",msg);
+  printbitssimple16(msg,64);
+  printf("64 --> %s\n",msg);
+  printbitssimple16(msg,128);
+  printf("128 --> %s\n",msg);
+  printbitssimple16(msg,256);
+  printf("256 --> %s\n",msg);
+  printbitssimple16(msg,512);
+  printf("512 --> %s\n",msg);
+  printbitssimple16(msg,1024);
+  printf("1024 --> %s\n",msg);
+  printbitssimple16(msg,2048);
+  printf("2048 --> %s\n",msg);
+  printbitssimple16(msg,1536);
+  printf("1536 --> %s\n",msg);  
+  return 0;
+#endif
+
+  
   daemonize();
 
   conn();
@@ -361,55 +417,79 @@ int main()
 	    /***********/
 	    // do something with data sent
 
-	    // OTB gestione transizioni BIT registro ingressi
+
+	    /* OTB */
+	    /* OTB gestione transizioni BIT registro ingressi */
 	    newvalbit=mb_mapping->tab_registers[OTBDIN];
 	    uint8_t cur;
+	    
+	    uint16_t diff;
+	    char str[100];
+	    
 	    if (oldvalbit!=newvalbit) {
-	      sprintf(msg,"\tnewval: %i\n",newvalbit);
-	      logvalue(LOG_FILE,msg);
-	      for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
+	      diff = oldvalbit^newvalbit;
 
-		//--------------------------------
+	      sprintf(msg,"\toldval:\t[%i],\t%s\n",oldvalbit,printbitssimple16(str,oldvalbit));
+	      logvalue(LOG_FILE,msg);
+	      sprintf(msg,"\tnewval:\t[%i],\t%s\n",newvalbit,printbitssimple16(str,newvalbit));
+	      logvalue(LOG_FILE,msg);
+	      sprintf(msg,"\tdiff:\t[%i],\t%s\n",diff,printbitssimple16(str,diff));
+	      logvalue(LOG_FILE,msg);
+	      
+	      for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
+		//------------------------------------------------------
 		if (!CHECK_BIT(oldvalbit,cur) && CHECK_BIT(newvalbit,cur)) {
 		  switch ( cur ) {
-		    case FARI_ESTERNI_IN_SOPRA: {
-		      logvalue(LOG_FILE,"Fari Esterni Sopra\n");
-		      break;
+		  case FARI_ESTERNI_IN_SOPRA: {
+		    logvalue(LOG_FILE,"Fari Esterni Sopra\n");
+		    break;
+		  }
+		  case FARI_ESTERNI_IN_SOTTO: {
+		    logvalue(LOG_FILE,"Fari Esterni Sotto\n");
+		    break;
+		  }
+		    
+		  case OTB_IN9: {
+		    logvalue(LOG_FILE,"Apertura Totale Cancello\n");
+		    if (FALSE) {
+		      if (pulsante(mb_plc,APERTURA_TOTALE)<0) {
+			logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura totale\n");
+		      }
 		    }
-		    case FARI_ESTERNI_IN_SOTTO: {
-		      logvalue(LOG_FILE,"Fari Esterni Sotto\n");
-		      break;
+		    break;
+		  }		    
+		  case OTB_IN8: {
+		    logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
+		    if (FALSE) {
+		      if (pulsante(mb_plc,APERTURA_PARZIALE)<0) {
+			logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura parziale\n");
+		      }
 		    }
-		    case OTB_IN9: {
-		      logvalue(LOG_FILE,"Apertura Totale Cancello\n");
-		      break;
-		    }
-		    case OTB_IN8: {
-		      logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
-		      break;
-		    }
-		    case OTB_IN6: {
-		      break;
-		    }
-		    case OTB_IN5: {
-		      break;
-		    }
-		    case OTB_IN4: {
-		      break;
-		    }
-		    case OTB_IN3: {
-		      break;
-		    }
-		    case OTB_IN2: {
-		      break;
-		    }
-		    case OTB_IN1: {
-		      break;
-		    }
-		    case OTB_IN0: {
-		      break;
-		    }
-		    }		      
+		    break;
+		  }
+		    
+		  case OTB_IN6: {
+		    break;
+		  }
+		  case OTB_IN5: {
+		    break;
+		  }
+		  case OTB_IN4: {
+		    break;
+		  }
+		  case OTB_IN3: {
+		    break;
+		  }
+		  case OTB_IN2: {
+		    break;
+		  }
+		  case OTB_IN1: {
+		    break;
+		  }
+		  case OTB_IN0: {
+		    break;
+		  }
+		  }		      
 		  // sprintf(msg,"\tBit %s (num. %i): 0->1\n",otbdigitalinputs[cur],cur);
 		  // logvalue(LOG_FILE,msg);
 		}
