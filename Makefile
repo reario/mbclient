@@ -10,7 +10,7 @@ LIBDIRPQ = /usr/local/pgsql/lib/
 
 all: mbclient
 
-mbclient: mbclient.o
+mbclient: mbclient.o 
 	$(CC) -Wall -L${LIBDIRPQ} -L${LIBDIR} -lpq -lmodbus -lm $^ -o $@
 
 # vengono costruiti fli object
