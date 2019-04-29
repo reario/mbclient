@@ -32,6 +32,7 @@ modbus_t *ctx = NULL; // listen socket
 modbus_t *mb_plc = NULL;
 modbus_t *mb_otb = NULL;
 
+
 int s = -1; // main socket
 modbus_mapping_t *mb_mapping = NULL; // registri del server
 
@@ -101,6 +102,22 @@ void logvalue(char *filename, char *message)
   fclose(logfile);
 }
 
+
+void mylog(char *filename, char *f, const char *message) {
+
+  FILE *logfile;
+  char t[30];
+  ts(t,"[%F %T]");
+  //ts(t,"[%Y%m%d-%H%M%S]");
+  logfile=fopen(filename,"a");
+  if(!logfile) return;
+  fprintf(logfile,"%s ",t);
+  fprintf(logfile,f,message);
+  fclose(logfile);
+  
+}
+
+
 int pulsante(modbus_t *m,int bobina)
 {  
   char errmsg[100];
@@ -124,7 +141,7 @@ int pulsante(modbus_t *m,int bobina)
   return 0;
 }
 
-int interruttore(modbus_t *m, int bit, uint16_t dest, uint16_t reg) {
+int oldinterruttore(modbus_t *m, int bit, uint16_t dest, uint16_t reg) {
   /* cambia lo stato del bit "bit" del registro reg */
   /* se "bit" era 0 va a 1 e viceversa */
   /* l'XOR (^) fa proprio questo */
@@ -167,17 +184,18 @@ void myCleanExit(char * from) {
   logvalue(LOG_FILE,"\tLibero la memoria dalle strutture create\n");
   modbus_free(mb_plc);
   modbus_close(mb_otb);
-  
+    
   logvalue(LOG_FILE,"\tChiudo il socket e le strutture del server\n");
   modbus_mapping_free(mb_mapping);
-
   if (s != -1) {
     close(s);
   }
-  
   modbus_close(ctx);
   modbus_free(ctx);
 
+
+
+  
   logvalue(LOG_FILE,"Fine.\n");
   logvalue(LOG_FILE,"****************** END **********************\n");
   
@@ -237,13 +255,11 @@ void daemonize()
   logvalue(LOG_FILE,"****************** START **********************\n");
 }
 
-///////////////////////////////////////////////////////////////////
-
-//-----------------------------
 void conn() {
+  /* Esegue la connessione al PLC e all'OTB */
   char errmsg[100];
   mb_plc = modbus_new_tcp("192.168.1.157",502);
-  mb_otb = modbus_new_tcp("192.168.1.11",502);
+  mb_otb = modbus_new_tcp("192.168.1.11" ,502);
 
   if ( (modbus_connect(mb_plc) == -1 ))
     {
@@ -252,7 +268,7 @@ void conn() {
       myCleanExit(errmsg);
       exit(EXIT_FAILURE);
     } else {
-    logvalue(LOG_FILE,"\t Connesso con PLC\n");
+    logvalue(LOG_FILE,"\tConnesso con PLC\n");
   }
 
   if ( (modbus_connect(mb_otb) == -1))
@@ -262,10 +278,224 @@ void conn() {
       myCleanExit(errmsg);
       exit(EXIT_FAILURE);
     } else {
-    logvalue(LOG_FILE,"\t Connesso con OTB\n");
+    logvalue(LOG_FILE,"\tConnesso con OTB\n");
   }
 }
-//-----------------------------
+
+
+uint16_t mask(uint16_t R, uint8_t C, int V) {
+
+  /* ritorna la mask (usata dalla FC16 write_mask)) per il registro R e per il Coil C */
+  uint16_t and_mask = !BitMask[C];
+  uint16_t or_mask = V ? BitMask[C] : !BitMask[C];
+
+  return (R & and_mask) | (or_mask & (!and_mask));  
+}
+
+uint16_t interruttore(modbus_t *m, uint16_t R, uint8_t COIL) {
+
+  /* ad ogni sua chiamata questa funzione inverte lo stato del bit COIL nel registro R */
+  char errmsg[100];
+  uint16_t V = CHECK_BIT(R,COIL)?FALSE:TRUE;
+
+  uint16_t and_mask = ~BitMask[COIL];
+  uint16_t or_mask = V ? BitMask[COIL] : ~BitMask[COIL];
+  sprintf(errmsg,"\tR=%u - C=%i - rBM=%u - !rBM=%u - AND MASK: %u - OR MASK: %u\n",R,COIL,BitMask[COIL],!BitMask[COIL],and_mask,or_mask);
+  logvalue(LOG_FILE,errmsg);
+  //mylog(LOG_FILE,"\t%s\n",V?"V=TRUE":"V=FALSE");
+
+  printbitssimple16(errmsg,(R & and_mask) | (or_mask & (~and_mask)));
+  mylog(LOG_FILE,"\t{%s} - ",errmsg);
+  
+  if (FALSE) {
+    if (modbus_mask_write_register(m,R,and_mask,or_mask) == -1) {
+      sprintf(errmsg,"ERRORE nella funzione interruttore %s\n",modbus_strerror(errno));
+      logvalue(LOG_FILE,errmsg);
+    }
+  }
+  return V;
+}
+
+uint16_t gestioneOTB() {
+
+  uint8_t cur;
+  
+  if (oldvalbitOTB!=newvalbitOTB) {
+    
+    for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
+      //------------------------------------------------------
+      if (!CHECK_BIT(oldvalbitOTB,cur) && CHECK_BIT(newvalbitOTB,cur)) {
+	switch ( cur ) {
+	case FARI_ESTERNI_IN_SOPRA: {
+	  logvalue(LOG_FILE,"Fari Esterni Sopra\n");
+	  break;
+	}
+	case FARI_ESTERNI_IN_SOTTO: {
+	  logvalue(LOG_FILE,"Fari Esterni Sotto\n");
+	  break;
+	}
+	  
+	case OTB_IN9: {
+	  logvalue(LOG_FILE,"Apertura Totale Cancello\n");
+	  if (FALSE) {
+	    if (pulsante(mb_plc,APERTURA_TOTALE)<0) {
+	      logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura totale\n");
+	    }
+	  }
+	  break;
+	}		    
+	case OTB_IN8: {
+	  logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
+	  if (FALSE) {
+	    if (pulsante(mb_plc,APERTURA_PARZIALE)<0) {
+	      logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura parziale\n");
+	    }
+	  }
+	  break;
+	}
+	  
+	case OTB_IN7: {
+	  break;
+	}
+	case OTB_IN6: {
+	  break;
+	}
+	case OTB_IN5: {
+	  break;
+	}
+	case OTB_IN4: {
+	  break;
+	}
+	case OTB_IN3: {
+	  break;
+	}
+	case OTB_IN2: {
+	  break;
+	}
+	case OTB_IN1: {
+	  break;
+	}
+	case OTB_IN0: {
+	  break;
+	}
+	}		      
+	// sprintf(msg,"\tBit %s (num. %i): 0->1\n",otbdigitalinputs[cur],cur);
+	// logvalue(LOG_FILE,msg);
+      }
+      if (CHECK_BIT(oldvalbitOTB,cur) && !CHECK_BIT(newvalbitOTB,cur)) {
+	//sprintf(msg,"\tBit %s (num. %i): 1->0\n",otbdigitalinputs[cur],cur);
+	//logvalue(LOG_FILE,msg);
+      }
+      //-------------------------------		    
+    }
+  }
+  return 0;
+}
+
+uint16_t gestioneIN0() {
+
+  uint8_t cur;
+  char msg[100];
+
+  if (oldvalbitIN0!=newvalbitIN0) {
+
+    printbitssimple16(msg,oldvalbitIN0);
+    mylog(LOG_FILE,"\t%s\n",msg);
+    
+    printbitssimple16(msg,newvalbitIN0);
+    mylog(LOG_FILE,"\t%s\n",msg);
+    
+    for (cur=0;cur<16;cur++) { // 12 num ingressi digitali OTB
+      //------------------------------------------------------
+      if ( (!CHECK_BIT(oldvalbitIN0,cur) && CHECK_BIT(newvalbitIN0,cur))
+	   // ||
+	   // (CHECK_BIT(oldvalbitIN0,cur) && !CHECK_BIT(newvalbitIN0,cur)) )
+	{
+		
+	switch ( cur ) {
+	case IN00: {
+	  logvalue(LOG_FILE,"IN00 0->1\n");
+	  interruttore(mb_otb,mb_mapping->tab_registers[2],5);
+	  break;
+	}
+	case IN01: {
+	  logvalue(LOG_FILE,"IN01 0->1\n");
+	  break;
+	}
+	  
+	case IN02: {
+	  logvalue(LOG_FILE,"IN02 0->1\n");
+	  break;
+	}
+	  
+	case IN03: {
+	  logvalue(LOG_FILE,"IN03 0->1\n");
+	  break;
+	}
+	  
+	case IN04: {
+	  logvalue(LOG_FILE,"IN04 0->1\n");
+	  break;
+	}
+	case IN05: {
+	  logvalue(LOG_FILE,"IN05 0->1\n");
+	  break;
+	}
+	case IN06: {
+	  logvalue(LOG_FILE,"IN06 0->1\n");
+	  break;
+	}
+	case IN07: {
+	  logvalue(LOG_FILE,"IN07 0->1\n");
+	  break;
+	}
+	case IN08: {
+	  logvalue(LOG_FILE,"IN08 0->1\n");
+	  break;
+	}
+	case IN09: {
+	  logvalue(LOG_FILE,"IN09 0->1\n");
+	  break;
+	}
+	case IN10: {
+	  logvalue(LOG_FILE,"IN10 0->1\n");
+	  break;
+	}
+	case IN11: {
+	  logvalue(LOG_FILE,"IN11 0->1\n");
+	  break;
+	}
+	case IN12: {
+	  logvalue(LOG_FILE,"IN12 0->1\n");
+	  break;
+	}
+	case IN13: {
+	  logvalue(LOG_FILE,"IN13 0->1\n");
+	  break;
+	}
+	case IN14: {
+	  logvalue(LOG_FILE,"IN14 0->1\n");
+	  break;
+	}
+	case IN15: {
+	  logvalue(LOG_FILE,"IN15 0->1\n");
+	  break;
+	}
+	}
+      }
+	// sprintf(msg,"\tBit %s (num. %i): 0->1\n",otbdigitalinputs[cur],cur);
+	// logvalue(LOG_FILE,msg);
+    if (CHECK_BIT(oldvalbitIN0,cur) && !CHECK_BIT(newvalbitIN0,cur)) {
+      char s[5]; sprintf(s,"%02d",cur);
+      mylog(LOG_FILE,"IN%s 1->0\n",s);
+      //sprintf(msg,"\tBit %s (num. %i): 1->0\n",otbdigitalinputs[cur],cur);
+      //logvalue(LOG_FILE,msg);
+    }
+    //-------------------------------		
+    }
+  }
+  return 0;
+}
 
 int main()
 {
@@ -278,12 +508,11 @@ int main()
   fd_set current_rfds;
   int current_socket;
   int fdmax;
-  
-  uint16_t oldvalbit=0;
-  uint16_t newvalbit=0;
+
 
   
 #ifdef PIPPO
+  char msg[100];  
   printbitssimple16(msg,1);
   printf("1 --> %s\n",msg);
   printbitssimple16(msg,2);
@@ -321,8 +550,7 @@ int main()
   mb_mapping = modbus_mapping_new(200, 0, 200, 0);
   
   if (mb_mapping == NULL) {
-    fprintf(stderr, "Failed to allocate the mapping: %s\n",
-	    modbus_strerror(errno));
+    mylog(LOG_FILE,"Failed to allocate the mapping: %s\n", modbus_strerror(errno));
     modbus_free(ctx);
     return -1;
   }
@@ -334,7 +562,8 @@ int main()
   FD_SET(s, &rfds);  
   fdmax = s;
 
-  oldvalbit=newvalbit;
+  oldvalbitOTB=newvalbitOTB;
+  oldvalbitIN0 = newvalbitIN0;
   
   for(;;) {
 
@@ -423,80 +652,18 @@ int main()
 
 	    /* OTB */
 	    /* OTB gestione transizioni BIT registro ingressi */
-	    newvalbit=mb_mapping->tab_registers[OTBDIN];
+	    newvalbitOTB=mb_mapping->tab_registers[OTBDIN];
+	    newvalbitIN0=mb_mapping->tab_registers[IN0];
 
-	    
-	    if (oldvalbit!=newvalbit) {
-	      uint8_t cur;
-	      for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
-		//------------------------------------------------------
-		if (!CHECK_BIT(oldvalbit,cur) && CHECK_BIT(newvalbit,cur)) {
-		  switch ( cur ) {
-		  case FARI_ESTERNI_IN_SOPRA: {
-		    logvalue(LOG_FILE,"Fari Esterni Sopra\n");
-		    break;
-		  }
-		  case FARI_ESTERNI_IN_SOTTO: {
-		    logvalue(LOG_FILE,"Fari Esterni Sotto\n");
-		    break;
-		  }
-		    
-		  case OTB_IN9: {
-		    logvalue(LOG_FILE,"Apertura Totale Cancello\n");
-		    if (FALSE) {
-		      if (pulsante(mb_plc,APERTURA_TOTALE)<0) {
-			logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura totale\n");
-		      }
-		    }
-		    break;
-		  }		    
-		  case OTB_IN8: {
-		    logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
-		    if (FALSE) {
-		      if (pulsante(mb_plc,APERTURA_PARZIALE)<0) {
-			logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura parziale\n");
-		      }
-		    }
-		    break;
-		  }
-		    
-		  case OTB_IN6: {
-		    break;
-		  }
-		  case OTB_IN5: {
-		    break;
-		  }
-		  case OTB_IN4: {
-		    break;
-		  }
-		  case OTB_IN3: {
-		    break;
-		  }
-		  case OTB_IN2: {
-		    break;
-		  }
-		  case OTB_IN1: {
-		    break;
-		  }
-		  case OTB_IN0: {
-		    break;
-		  }
-		  }		      
-		  // sprintf(msg,"\tBit %s (num. %i): 0->1\n",otbdigitalinputs[cur],cur);
-		  // logvalue(LOG_FILE,msg);
-		}
-		if (CHECK_BIT(oldvalbit,cur) && !CHECK_BIT(newvalbit,cur)) {
-		  //sprintf(msg,"\tBit %s (num. %i): 1->0\n",otbdigitalinputs[cur],cur);
-		  //logvalue(LOG_FILE,msg);
-		}
-		//-------------------------------		
-	      }
-	    }
-	    oldvalbit=newvalbit;
+	    gestioneOTB(newvalbitOTB,oldvalbitOTB);
+	    gestioneIN0(newvalbitIN0,oldvalbitIN0);	    
+
+	    oldvalbitOTB=newvalbitOTB;
+	    oldvalbitIN0=newvalbitIN0;
 	    /***********/
 	  }
 	    break;
-	  }
+	  } // switch
 	  /////////////////////////////////////////////////      
 	} else if (rc  == -1) {
 	  /* il client ha chiuso la connessione */
