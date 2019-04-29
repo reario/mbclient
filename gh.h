@@ -75,7 +75,13 @@ const char *otbdigitaloutputs[] = {"Fari Esterni Sopra","Fari Esterni Sotto","Ou
 #define otbdigitalinputregister 74
 
 const uint16_t reverseBitMask[] = {32768,16384,8192,4096,2048,1024,512,256,128,64,32,16,8,4,2,1};
+const uint16_t BitMask[] = {1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768};
 
+uint16_t oldvalbitOTB=0;
+uint16_t newvalbitOTB=0;
+
+uint16_t oldvalbitIN0=0; // registro 0
+uint16_t newvalbitIN0=0;
 
 
 /*
@@ -105,6 +111,7 @@ In the device receiving the command:
 #define OTBDOUT 77 /* word che contiene lo stato degli output 0-7 dell'OTB */
 #define OTBAOUT1 78 /* word che contiene lo stato dell'output analogico 1 dell'OTB */
 #define OTBAOUT2 79 /* word che contiene lo stato dell'output analogico 2 dell'OTB */
+
 /* REGISTRO INGRESSI OTB (OTN_IN): significato dei singoli BIT del registro n 74 (registro di 16 bit) */
 #define FARI_ESTERNI_IN_SOPRA 11 /* 11-esimo bit dell'ingresso dell'OTB IN11*/
 #define FARI_ESTERNI_IN_SOTTO 10 /* 10-esimo bit dell'ingresso dell'OTB IN10*/
@@ -129,3 +136,42 @@ In the device receiving the command:
 #define OTB_Q7 7 /* 7-esimo bit dell'uscita dell'OTB Q7 */
 
 /*========================================*/
+
+
+#define IN0 0
+// :::::::::::
+#define IN00 0
+#define IN01 1
+#define IN02 2
+#define IN03 3
+#define IN04 4
+#define IN05 5
+#define IN06 6
+#define IN07 7
+#define IN08 8
+#define IN09 9
+#define IN10 10
+#define IN11 11
+#define IN12 12
+#define IN13 13
+#define IN14 14
+#define IN15 15
+
+#define OUT1 1 //<--il secondo registro. nel prim (0) ci sono gli input
+// :::::::::::
+#define OUT00 0
+#define OUT01 1
+#define OUT02 2
+#define OUT03 3
+#define OUT04 4
+#define OUT05 5
+#define OUT06 6
+#define OUT07 7
+#define OUT08 8
+#define OUT09 9
+#define OUT10 10
+#define OUT11 11
+#define OUT12 12
+#define OUT13 13
+#define OUT14 14
+#define OUT15 15
