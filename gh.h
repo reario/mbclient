@@ -1,8 +1,4 @@
 
-
-
-
-
 #define RUNNING_DIR     "/home/reario/mbclient/"
 #define LOCK_FILE       "/home/reario/mbclient/mbclient.lock"
 #define LOG_FILE        "/home/reario/mbclient/mbclient.log"
@@ -72,9 +68,7 @@
 /***************/
 const char *otbdigitalinputs[] =  {"In0","In1","In2","In3","In4","In5","In6","In7","Apertura Parziale","Apertura Totale","Fari Esteni Sotto","Fari Esterni Sopra"};
 const char *otbdigitaloutputs[] = {"Fari Esterni Sopra","Fari Esterni Sotto","Out2","Out3","Out4","Out5","Out6","out7"};
-#define otbdigitalinputregister 74
 
-const uint16_t reverseBitMask[] = {32768,16384,8192,4096,2048,1024,512,256,128,64,32,16,8,4,2,1};
 const uint16_t BitMask[] = {1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768};
 
 uint16_t oldvalbitOTB=0;
