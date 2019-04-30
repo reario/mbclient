@@ -27,11 +27,15 @@
 
 #include "gh.h"
 
+#define LOC
 
 modbus_t *ctx = NULL; // listen socket
 modbus_t *mb_plc = NULL;
 modbus_t *mb_otb = NULL;
 
+#ifdef LOC
+modbus_t *mb_loc = NULL;
+#endif
 
 int s = -1; // main socket
 modbus_mapping_t *mb_mapping = NULL; // registri del server
@@ -180,11 +184,17 @@ void myCleanExit(char * from) {
   logvalue(LOG_FILE,"\tChiudo la connessione con PLC e OTB\n");
   modbus_close(mb_plc);
   modbus_close(mb_otb);
+#ifdef LOC
+  modbus_close(mb_loc);
+#endif
   
   logvalue(LOG_FILE,"\tLibero la memoria dalle strutture create\n");
   modbus_free(mb_plc);
-  modbus_close(mb_otb);
-    
+  modbus_free(mb_otb);
+#ifdef LOC
+  modbus_free(mb_loc);
+#endif
+  
   logvalue(LOG_FILE,"\tChiudo il socket e le strutture del server\n");
   modbus_mapping_free(mb_mapping);
   if (s != -1) {
@@ -192,9 +202,6 @@ void myCleanExit(char * from) {
   }
   modbus_close(ctx);
   modbus_free(ctx);
-
-
-
   
   logvalue(LOG_FILE,"Fine.\n");
   logvalue(LOG_FILE,"****************** END **********************\n");
@@ -260,7 +267,7 @@ void conn() {
   char errmsg[100];
   mb_plc = modbus_new_tcp("192.168.1.157",502);
   mb_otb = modbus_new_tcp("192.168.1.11" ,502);
-
+  
   if ( (modbus_connect(mb_plc) == -1 ))
     {
       sprintf(errmsg,"ERRORE non riesco a connettermi con il PLC %s\n",modbus_strerror(errno));
@@ -280,16 +287,7 @@ void conn() {
     } else {
     logvalue(LOG_FILE,"\tConnesso con OTB\n");
   }
-}
 
-
-uint16_t mask(uint16_t R, uint8_t C, int V) {
-
-  /* ritorna la mask (usata dalla FC16 write_mask)) per il registro R e per il Coil C */
-  uint16_t and_mask = !BitMask[C];
-  uint16_t or_mask = V ? BitMask[C] : !BitMask[C];
-
-  return (R & and_mask) | (or_mask & (!and_mask));  
 }
 
 uint16_t interruttore(modbus_t *m, uint16_t R, uint8_t COIL) {
@@ -303,9 +301,15 @@ uint16_t interruttore(modbus_t *m, uint16_t R, uint8_t COIL) {
   sprintf(errmsg,"\tR=%u - C=%i - rBM=%u - !rBM=%u - AND MASK: %u - OR MASK: %u\n",R,COIL,BitMask[COIL],!BitMask[COIL],and_mask,or_mask);
   logvalue(LOG_FILE,errmsg);
   //mylog(LOG_FILE,"\t%s\n",V?"V=TRUE":"V=FALSE");
-
   printbitssimple16(errmsg,(R & and_mask) | (or_mask & (~and_mask)));
-  mylog(LOG_FILE,"\t{%s} - ",errmsg);
+  mylog(LOG_FILE,"\t{%s}\n",errmsg);
+  
+#ifdef LOC
+  if ( modbus_write_register(m, (int)0, (int)(R & and_mask) | (or_mask & (~and_mask)) ) == -1) {
+    sprintf(errmsg,"ERRORE nella funzione interruttore %s\n",modbus_strerror(errno));
+    logvalue(LOG_FILE,errmsg);
+  }
+#endif
   
   if (FALSE) {
     if (modbus_mask_write_register(m,R,and_mask,or_mask) == -1) {
@@ -333,8 +337,7 @@ uint16_t gestioneOTB() {
 	case FARI_ESTERNI_IN_SOTTO: {
 	  logvalue(LOG_FILE,"Fari Esterni Sotto\n");
 	  break;
-	}
-	  
+	}	  
 	case OTB_IN9: {
 	  logvalue(LOG_FILE,"Apertura Totale Cancello\n");
 	  if (FALSE) {
@@ -352,8 +355,7 @@ uint16_t gestioneOTB() {
 	    }
 	  }
 	  break;
-	}
-	  
+	}	  
 	case OTB_IN7: {
 	  break;
 	}
@@ -405,17 +407,20 @@ uint16_t gestioneIN0() {
     printbitssimple16(msg,newvalbitIN0);
     mylog(LOG_FILE,"\t%s\n",msg);
     
-    for (cur=0;cur<16;cur++) { // 12 num ingressi digitali OTB
+    for (cur=0;cur<16;cur++) { // registro 16 bit
       //------------------------------------------------------
-      if ( (!CHECK_BIT(oldvalbitIN0,cur) && CHECK_BIT(newvalbitIN0,cur))
+      if ( !CHECK_BIT(oldvalbitIN0,cur) && CHECK_BIT(newvalbitIN0,cur) )
 	   // ||
 	   // (CHECK_BIT(oldvalbitIN0,cur) && !CHECK_BIT(newvalbitIN0,cur)) )
-	{
-		
+	{		
 	switch ( cur ) {
 	case IN00: {
+	  uint16_t remote_value[1];
+	  uint16_t bit_num;
 	  logvalue(LOG_FILE,"IN00 0->1\n");
-	  interruttore(mb_otb,mb_mapping->tab_registers[2],5);
+	  bit_num = mb_mapping->tab_registers[1];
+	  modbus_read_registers(mb_loc,0,1,remote_value); // il valore del registro remoto da cambiare 
+	  interruttore(mb_loc,remote_value[0],bit_num); // il bit da variare
 	  break;
 	}
 	case IN01: {
@@ -486,8 +491,21 @@ uint16_t gestioneIN0() {
 	// sprintf(msg,"\tBit %s (num. %i): 0->1\n",otbdigitalinputs[cur],cur);
 	// logvalue(LOG_FILE,msg);
     if (CHECK_BIT(oldvalbitIN0,cur) && !CHECK_BIT(newvalbitIN0,cur)) {
-      char s[5]; sprintf(s,"%02d",cur);
-      mylog(LOG_FILE,"IN%s 1->0\n",s);
+      for (cur=0;cur<16;cur++) { // 12 num ingressi digitali OTB
+	
+      switch ( cur ) {
+	case IN00: {
+	  uint16_t remote_value[1];
+	  uint16_t bit_num;
+	  logvalue(LOG_FILE,"IN00 1->0\n");
+	  bit_num = mb_mapping->tab_registers[1];
+	  modbus_read_registers(mb_loc,0,1,remote_value); // il valore del registro remoto da cambiare 
+	  interruttore(mb_loc,remote_value[0],bit_num); // il bit da variare
+	  // interruttore(mb_loc,mb_mapping->tab_registers[2],5);
+	  break;
+	}
+      }
+      }
       //sprintf(msg,"\tBit %s (num. %i): 1->0\n",otbdigitalinputs[cur],cur);
       //logvalue(LOG_FILE,msg);
     }
@@ -543,12 +561,13 @@ int main()
 #endif
 
   
-  daemonize();
+  //daemonize();
 
-  conn();
-  ctx = modbus_new_tcp("192.168.1.110", 1502);
+
+  ctx = modbus_new_tcp(NULL, 1502);
   mb_mapping = modbus_mapping_new(200, 0, 200, 0);
-  
+  modbus_set_debug(ctx, FALSE);
+    
   if (mb_mapping == NULL) {
     mylog(LOG_FILE,"Failed to allocate the mapping: %s\n", modbus_strerror(errno));
     modbus_free(ctx);
@@ -564,6 +583,24 @@ int main()
 
   oldvalbitOTB=newvalbitOTB;
   oldvalbitIN0 = newvalbitIN0;
+
+  conn();
+
+#ifdef LOC
+  if (mb_loc == NULL) {    
+    char errmsg[100];
+    mb_loc = modbus_new_tcp("192.168.1.103" ,502);
+    if ( (modbus_connect(mb_loc) == -1))
+      {
+	sprintf(errmsg,"ERRORE non riesco a connettermi con il locale. Premature exit [%s]\n",modbus_strerror(errno));
+	logvalue(LOG_FILE,errmsg);
+	myCleanExit(errmsg);
+	exit(EXIT_FAILURE);
+      } else {
+      logvalue(LOG_FILE,"\tConnesso con il PLC remoto 192.168.1.103\n");
+    }
+  }
+#endif
   
   for(;;) {
 
@@ -579,6 +616,7 @@ int main()
       if (!FD_ISSET(current_socket, &current_rfds)) {
 	continue;
       }
+      
       //-----------------------        
       /*************** NUOVA CONNESSIONE ************************/
       if (current_socket == s) {
@@ -599,33 +637,35 @@ int main()
 	  /* Keep track of the maximum */
 	  fdmax = newfd;
 	}  
-
 	/*
 	printf("New connection from %s:%d on socket %d\n",
 	       inet_ntoa(clientaddr.sin_addr),
 	       clientaddr.sin_port, 
 	       current_socket);
-	*/	
+	*/
       }
       /*********************************************************/      
       else
 	{
 	/* gestisco dati provenienti da una connessione già stabilita */
 	modbus_set_socket(ctx, current_socket);
-	rc = modbus_receive(ctx, query);
-	
+	rc = modbus_receive(ctx, query);	
 	if (rc > 0) {
-	  
-	  modbus_reply(ctx, query, rc, mb_mapping);
+
+	  if ( modbus_reply(ctx, query, rc, mb_mapping) == -1 ) {
+	    fprintf(stderr,"\tErr: %s\n",modbus_strerror(errno));
+	  }
 	  
 	  /////////////////////////////////////////////////
 	  int offset = modbus_get_header_length(ctx);
 	  /***** Estraggo il codice richiesta *****/
 	  // uint16_t reg_address = (query[offset + 1]<< 8) + query[offset + 2];		  
 	  
+	  // fprintf(stderr,"\tOffset: %i\n",query[offset]);
+	  
 	  switch (query[offset]) {
 	  case 0x05: {/* il PLC sta chiedendo di scrivere BITS (non caèpita con il TWIDO)*/
-
+	    
 	    /*
 	      printf("\til PLC sta chiedendo di scrivere BITS\n");
 	      printf("\tCoil Registro %d-->%s [0x%02X]\n",
@@ -637,7 +677,6 @@ int main()
 	    break;
 	  case 0x10:
 	  case 0x06: {/* il PLC sta chiedendo di scrivere N registri  */
-
 	    /*
 	      printf("\til PLC sta chiedendo di scrivere REGISTRI\n");	    
 	      printf("\t%d-->%i [0x%02X]\n",reg_address,
@@ -645,11 +684,8 @@ int main()
 	      query[offset]);
 	    */
 	    
-	    
 	    /***********/
 	    // do something with data sent
-
-
 	    /* OTB */
 	    /* OTB gestione transizioni BIT registro ingressi */
 	    newvalbitOTB=mb_mapping->tab_registers[OTBDIN];
@@ -677,6 +713,7 @@ int main()
 	}
 	}
     } /* fine current_socket */
+
   } /* fine for (;;) */
   return 0;
 }
