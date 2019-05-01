@@ -28,8 +28,8 @@
 #include "gh.h"
 
 modbus_t *ctx = NULL; // listen socket
-modbus_t *mb_plc = NULL;
-modbus_t *mb_otb = NULL;
+
+//modbus_t *mb_otb = NULL;
   
 int s = -1; // main socket
 modbus_mapping_t *mb_mapping = NULL; // registri del server
@@ -243,7 +243,7 @@ uint16_t interruttore(modbus_t *m, uint16_t R, const uint8_t COIL, const uint8_t
   return V;
 }
 
-
+#ifdef PIPPO
 void conn() {
   /* Esegue la connessione al PLC e all'OTB */
   char errmsg[100];
@@ -271,7 +271,7 @@ void conn() {
   }
 
 }
-
+#endif
 
 uint16_t gestioneOTB() {
 
@@ -296,8 +296,8 @@ uint16_t gestioneOTB() {
 	case OTB_IN9: {
 	  logvalue(LOG_FILE,"Apertura Totale Cancello\n");
 	  if (FALSE) {
-	    mb_plc = modbus_new_tcp("192.168.1.157" ,502);
-	    if ( (modbus_connect(mb_otb) == -1 )) {
+	    modbus_t *mb_plc = mb_plc = modbus_new_tcp("192.168.1.157" ,502);
+	    if ( (modbus_connect(mb_plc) == -1 )) {
 	      sprintf(msg,"ERRORE non riesco a connettermi con il PLC nella fase 0->1 [%s]\n",modbus_strerror(errno));
 	      logvalue(LOG_FILE,msg);
 	    } else {
@@ -314,8 +314,8 @@ uint16_t gestioneOTB() {
 	case OTB_IN8: {
 	  logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
 	  if (FALSE) {
-	    mb_plc = modbus_new_tcp("192.168.1.157" ,502);
-	    if ( (modbus_connect(mb_otb) == -1 )) {
+	    modbus_t *mb_plc = modbus_new_tcp("192.168.1.157" ,502);
+	    if ( (modbus_connect(mb_plc) == -1 )) {
 	      sprintf(msg,"ERRORE non riesco a connettermi con il PLC nella fase 0->1 [%s]\n",modbus_strerror(errno));
 	      logvalue(LOG_FILE,msg);
 	    } else {
@@ -358,7 +358,7 @@ uint16_t gestioneOTB() {
 	// logvalue(LOG_FILE,msg);
       }
       if (CHECK_BIT(oldvalbitOTB,cur) && !CHECK_BIT(newvalbitOTB,cur)) {
-	//
+	// qui vanno messe le funzioni per la gestione 1->0 come per gli interruttori che devono invertire lo stato precedente
       }
     } // for (cur=0;....)
   } // oldvalBIT != newvalBIT
@@ -370,7 +370,7 @@ uint16_t gestioneIN0() {
   uint8_t cur;
   char msg[100];
 
-  mb_otb = modbus_new_tcp("192.168.1.11" ,502);
+  modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
   
   if (oldvalbitIN0!=newvalbitIN0) {
 
