@@ -119,7 +119,8 @@ In the device receiving the command:
 #define OTB_IN2 2 /* 2-esimo bit dell'ingresso dell'OTB IN02 */
 #define OTB_IN1 1 /* 1-esimo bit dell'ingresso dell'OTB IN01 */
 #define OTB_IN0 0 /* 0-esimo bit dell'ingresso dell'OTB IN00 */
-/* REGISTRO USCITE OTB: significato dei singoli bit del registro (registro di 16 bit) */ 
+/* REGISTRO USCITE OTB: significato dei singoli bit del registro (registro di 16 bit) */
+/*          ------   OTBDOUT 77  ---------                                    */
 #define FARI_ESTERNI_SOPRA 0 /* 0-esimo bit dell'uscita dell'OTB Q0 */
 #define FARI_ESTERNI_SOTTO 1 /* 1-esimo bit dell'uscita dell'OTB Q1 */
 #define OTB_Q2 2 /* 2-esimo bit dell'uscita dell'OTB Q2 */
@@ -128,7 +129,6 @@ In the device receiving the command:
 #define OTB_Q5 5 /* 5-esimo bit dell'uscita dell'OTB Q5 */
 #define OTB_Q6 6 /* 6-esimo bit dell'uscita dell'OTB Q6 */
 #define OTB_Q7 7 /* 7-esimo bit dell'uscita dell'OTB Q7 */
-
 /*========================================*/
 
 
