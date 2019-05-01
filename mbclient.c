@@ -273,9 +273,10 @@ void conn() {
 }
 
 
-uint16_t gestioneINPUT_OTB() {
+uint16_t gestioneOTB() {
 
   uint8_t cur;
+  char msg[100];
   
   if (oldvalbitOTB!=newvalbitOTB) {
     
@@ -290,25 +291,44 @@ uint16_t gestioneINPUT_OTB() {
 	case FARI_ESTERNI_IN_SOTTO: {
 	  logvalue(LOG_FILE,"Fari Esterni Sotto\n");
 	  break;
-	}	  
+	}
+
 	case OTB_IN9: {
 	  logvalue(LOG_FILE,"Apertura Totale Cancello\n");
 	  if (FALSE) {
-	    if (pulsante(mb_plc,APERTURA_TOTALE)<0) {
-	      logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura totale\n");
+	    mb_plc = modbus_new_tcp("192.168.1.157" ,502);
+	    if ( (modbus_connect(mb_otb) == -1 )) {
+	      sprintf(msg,"ERRORE non riesco a connettermi con il PLC nella fase 0->1 [%s]\n",modbus_strerror(errno));
+	      logvalue(LOG_FILE,msg);
+	    } else {
+	      if (pulsante(mb_plc,APERTURA_TOTALE)<0) {
+		logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura totale\n");
+	      }
+	      modbus_close(mb_plc);
 	    }
+	    modbus_free(mb_plc);
 	  }
 	  break;
-	}		    
+	}
+	  
 	case OTB_IN8: {
 	  logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
 	  if (FALSE) {
-	    if (pulsante(mb_plc,APERTURA_PARZIALE)<0) {
-	      logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura parziale\n");
+	    mb_plc = modbus_new_tcp("192.168.1.157" ,502);
+	    if ( (modbus_connect(mb_otb) == -1 )) {
+	      sprintf(msg,"ERRORE non riesco a connettermi con il PLC nella fase 0->1 [%s]\n",modbus_strerror(errno));
+	      logvalue(LOG_FILE,msg);
+	    } else {
+	      if (pulsante(mb_plc,APERTURA_PARZIALE)<0) {
+		logvalue(LOG_FILE,"\tproblemi con pulsante durante apertura parziale\n");
+	      }
+	      modbus_close(mb_plc);  
 	    }
+	    modbus_free(mb_plc);
 	  }
 	  break;
-	}	  
+	}
+	  
 	case OTB_IN7: {
 	  break;
 	}
