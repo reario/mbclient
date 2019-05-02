@@ -69,8 +69,6 @@
 const char *otbdigitalinputs[] =  {"In0","In1","In2","In3","In4","In5","In6","In7","Apertura Parziale","Apertura Totale","Fari Esteni Sotto","Fari Esterni Sopra"};
 const char *otbdigitaloutputs[] = {"Fari Esterni Sopra","Fari Esterni Sotto","Out2","Out3","Out4","Out5","Out6","out7"};
 
-const uint16_t BitMask[] = {1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768};
-
 uint16_t oldvalbitOTB=0;
 uint16_t newvalbitOTB=0;
 
