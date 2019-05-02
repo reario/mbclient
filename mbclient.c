@@ -119,7 +119,7 @@ void mylog(char *filename, char *f, const char *message) {
 int pulsante(modbus_t *m,int bobina)
 {  
   char errmsg[100];
-
+  
   if ( modbus_write_bit(m,bobina,TRUE) != 1 ) {
     // The modbus_write_bit() function shall return 1 if successful. 
     // Otherwise it shall return -1 and set errno.
@@ -127,15 +127,15 @@ int pulsante(modbus_t *m,int bobina)
     logvalue(LOG_FILE,errmsg);
     return -1;
   }
-
+  
   sleep(1);
-
+  
   if ( modbus_write_bit(m,bobina,FALSE) != 1 ) {
     sprintf(errmsg,"ERRORE DI SCRITTURA:PULSANTE OFF %s\n",modbus_strerror(errno));
     logvalue(LOG_FILE,errmsg);
     return -1;
   }
-
+  
   return 0;
 }
 
@@ -226,23 +226,6 @@ void daemonize()
   logvalue(LOG_FILE,"****************** START **********************\n");
 }
 
-
-
-uint16_t interruttore(modbus_t *m, uint16_t R, const uint8_t COIL, const uint8_t V) {
-  /* ad ogni sua chiamata questa funzione inverte lo stato del bit COIL nel registro R a seconda del valore di V: V=TRUE 0->1, V=FALSE 1>0 */
-  char errmsg[100];
-  // uint16_t V = CHECK_BIT(R,COIL)?FALSE:TRUE;
-
-  uint16_t and_mask = ~BitMask[COIL];
-  uint16_t or_mask = V ? BitMask[COIL] : ~BitMask[COIL];    
-  
-    if (modbus_mask_write_register(m,100,and_mask,or_mask) == -1) {
-      sprintf(errmsg,"ERRORE nella funzione interruttore %s\n",modbus_strerror(errno));
-      logvalue(LOG_FILE,errmsg);
-    }
-  return V;
-}
-
 #ifdef PIPPO
 void conn() {
   /* Esegue la connessione al PLC e all'OTB */
@@ -273,6 +256,35 @@ void conn() {
 }
 #endif
 
+uint16_t interruttore(modbus_t *m, uint16_t R, const uint8_t COIL, const uint8_t V) {
+
+  /* ad ogni sua chiamata questa funzione inverte lo stato del bit COIL 
+     nel registro R a seconda del valore di V: V=TRUE 0->1, V=FALSE 1>0 */
+  /* Usa la MaskWrite FC22 del modbus */
+  /* V=TRUE se transizione da 0->1, V=FALSE se transizione da 1->0 */
+  /* R num registro remoto (per OTB R = registro delle uscite ad indirizzo=100 */
+  /* COIL il numero del BIT del registro R da mettere a 1 o a 0 in base al valore di V */
+  
+  char errmsg[100];
+  uint16_t mask_coil;
+  
+  // uint16_t V = CHECK_BIT(R,COIL)?FALSE:TRUE;
+  
+  // uint16_t and_mask = ~BitMask[COIL]; 
+  // uint16_t or_mask = V ? BitMask[COIL] : ~BitMask[COIL];    
+
+  mask_coil = (1<<COIL);
+  uint16_t and_mask = ~mask_coil; 
+  uint16_t or_mask = V ? mask_coil : ~mask_coil;    
+  
+  if (modbus_mask_write_register(m,100,and_mask,or_mask) == -1) {
+    sprintf(errmsg,"ERRORE nella funzione interruttore %s\n",modbus_strerror(errno));
+    logvalue(LOG_FILE,errmsg);
+    return -1;
+  }
+  return 0;
+}
+
 uint16_t gestioneOTB() {
 
   uint8_t cur;
@@ -281,18 +293,20 @@ uint16_t gestioneOTB() {
   if (oldvalbitOTB!=newvalbitOTB) {
     
     for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
-      //------------------------------------------------------
+
       if (!CHECK_BIT(oldvalbitOTB,cur) && CHECK_BIT(newvalbitOTB,cur)) {
 	switch ( cur ) {
+	  /*----------------------------------------------------------------*/  
 	case FARI_ESTERNI_IN_SOPRA: {
 	  logvalue(LOG_FILE,"Fari Esterni Sopra\n");
 	  break;
 	}
+	  /*----------------------------------------------------------------*/  
 	case FARI_ESTERNI_IN_SOTTO: {
 	  logvalue(LOG_FILE,"Fari Esterni Sotto\n");
 	  break;
 	}
-
+	  /*----------------------------------------------------------------*/  
 	case OTB_IN9: {
 	  logvalue(LOG_FILE,"Apertura Totale Cancello\n");
 	  if (FALSE) {
@@ -310,7 +324,7 @@ uint16_t gestioneOTB() {
 	  }
 	  break;
 	}
-	  
+	  /*----------------------------------------------------------------*/  
 	case OTB_IN8: {
 	  logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
 	  if (FALSE) {
@@ -328,7 +342,7 @@ uint16_t gestioneOTB() {
 	  }
 	  break;
 	}
-	  
+	  /*----------------------------------------------------------------*/  
 	case OTB_IN7: {
 	  break;
 	}
@@ -366,7 +380,7 @@ uint16_t gestioneOTB() {
 }
 
 uint16_t gestioneIN0() {
-
+  // IN0 registro 0 dei 200 impostati su questo server
   uint8_t cur;
   char msg[100];
 
@@ -386,14 +400,18 @@ uint16_t gestioneIN0() {
 	  switch ( cur ) {
 	  
 	  case IN00: {
-	    logvalue(LOG_FILE,"IN00 0->1\n");	  
+	    logvalue(LOG_FILE,"IN00 0->1\n");
+	    modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
 	    if ( (modbus_connect(mb_otb) == -1 )) {
 	      sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno));
 	      logvalue(LOG_FILE,msg);
 	    } else {
-	      logvalue(LOG_FILE,"\tConnesso con l'OTB\n");
-	      interruttore(mb_otb,100,FARI_ESTERNI_SOPRA,TRUE); // 100 = regisro uscite OTB
+	      if (interruttore(mb_otb,100,FARI_ESTERNI_SOPRA,TRUE) == 0) { // 100 = regisro uscite OTB
+		logvalue(LOG_FILE,"\tFunzione interruttore avvenuta...0->1\n");
+	      }
+	      modbus_close(mb_otb);
 	    }
+	    modbus_free(mb_otb);
 	    break;
 	  } // Fari Esterni IN00
 	    
@@ -464,16 +482,35 @@ uint16_t gestioneIN0() {
 
 	switch ( cur ) {
 	case IN00: {
-	  logvalue(LOG_FILE,"IN00 1->0\n");
-	  if ( (modbus_connect(mb_otb) == -1 )) {
-	    sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno));
-	    logvalue(LOG_FILE,msg);
-	  } else {
-	    logvalue(LOG_FILE,"\tConnesso con l'OTB\n");
-	    interruttore(mb_otb,100,FARI_ESTERNI_SOPRA,FALSE); // 100 = regisro uscite OTB
-	  }	  
-	  break;
+	  
+	    logvalue(LOG_FILE,"IN00 0->1\n");
+	    modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
+	    if ( (modbus_connect(mb_otb) == -1 )) {
+	      sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno));
+	      logvalue(LOG_FILE,msg);
+	    } else {
+	      if (interruttore(mb_otb,100,FARI_ESTERNI_SOPRA,FALSE) == 0) { // 100 = regisro uscite OTB
+		logvalue(LOG_FILE,"\tFunzione interruttore avvenuta...1->0\n");
+	      }
+	      modbus_close(mb_otb);
+	    }
+	    modbus_free(mb_otb);
+	    break;
+	  
+	  /* //////// */
+	  /* logvalue(LOG_FILE,"IN00 1->0\n"); */
+	  /* if ( (modbus_connect(mb_otb) == -1 )) { */
+	  /*   sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno)); */
+	  /*   logvalue(LOG_FILE,msg); */
+	  /* } else { */
+	  /*   logvalue(LOG_FILE,"\tConnesso con l'OTB\n"); */
+	  /*   interruttore(mb_otb,100,FARI_ESTERNI_SOPRA,FALSE); // 100 = regisro uscite OTB */
+	  /* }	   */
+	  /* break; */
+	  /* ////////// */
+	  
 	}
+	  
 	case IN01: {
 	  break;
 	}
@@ -550,7 +587,7 @@ int main()
   FD_SET(s, &rfds);  
   fdmax = s;
 
-  oldvalbitOTB=newvalbitOTB;
+  oldvalbitOTB = newvalbitOTB;
   oldvalbitIN0 = newvalbitIN0;
 
   // conn();
