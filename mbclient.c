@@ -40,21 +40,12 @@ typedef struct datasignal {
 } datasignal_t;
 
 char *printbitssimple16(char *str, int16_t n) {
-
-  // non viene usata
-  // servita solo per delle prove
   /* dato l'intero n ritorna la rappresentazione binaria nella stringa str */
   uint16_t i;
   //  int j;
   i = (uint16_t)1<<(sizeof(n) * 8 - 1); /* 2^n */
   //char str[100];
-  str[0]='\0';
-  
-  /* for (j=15;j>=0;j--) {    */
-  /*   printf(" %2i",j); */
-  /* } */
-  /* printf("\n"); */
-  
+  str[0]='\0';  
   while (i > 0) {
     if (n & i)
       strcat(str,"1");
@@ -67,7 +58,6 @@ char *printbitssimple16(char *str, int16_t n) {
 }
 
 ///////////////////////////////////////////////////////////////////
-
 int ts(char * tst, char * fmt)
 {
   time_t current_time;
@@ -83,8 +73,7 @@ int ts(char * tst, char * fmt)
   tmp = localtime(&current_time);
   // [04/15/19 11:40AM] "[%F %T]"
   if (strftime(MYTIME, sizeof(MYTIME), fmt, tmp) == 0)
-    {
-      
+    {      
       return -1;
     }
   strcpy(tst,MYTIME);
@@ -103,7 +92,6 @@ void logvalue(char *filename, char *message)
   fprintf(logfile,"%s %s",t,message);
   fclose(logfile);
 }
-
 
 void mylog(char *filename, char *f, const char *message) {
 
@@ -128,14 +116,6 @@ void buttonRelease(int sig, siginfo_t *si, void *uc) {
   
   mbus = dsig->m;
   B = dsig->b;
-  /*  
-      logvalue(LOG_FILE,"SIGUSR1\n");
-      sprintf(msg,"\tDentro ButtonRelease [si->si_value.sival_ptr address] [%p] B [%u]\n",
-      (datasignal_t *)si->si_value.sival_ptr,B);
-      logvalue(LOG_FILE,msg);
-      sprintf(msg,"\tDentro ButtonRelease mbus address [%p] B [%u]\n",mbus,B);
-      logvalue(LOG_FILE,msg);
-  */
   if ( modbus_write_bit(mbus,B,FALSE) != 1 ) {
     sprintf(msg,"ERRORE DI SCRITTURA:PULSANTE OFF %s\n",modbus_strerror(errno));
     logvalue(LOG_FILE,msg);
@@ -165,12 +145,7 @@ static int makeTimer( datasignal_t *dsignal)
   
   te.sigev_notify = SIGEV_SIGNAL;
   te.sigev_signo = sigNo;
-  /*
-    char msg[100];
-    sprintf(msg,"\t ds. modbus add [%p] - Bobina [%u] -  ds address [%p]\n",dsignal->m,dsignal->b,dsignal);
-    logvalue(LOG_FILE,msg);
-  */
-  te.sigev_value.sival_ptr = dsignal;      // (modbus_t *)mbus;
+  te.sigev_value.sival_ptr = dsignal;
 
   if (timer_create(CLOCK_REALTIME, &te, &timerID)<0)
     logvalue(LOG_FILE,"\tErr creazione Timer\n");
@@ -179,13 +154,14 @@ static int makeTimer( datasignal_t *dsignal)
   its.it_interval.tv_nsec = 0 * 1000000; // attivo solo una volta
 
   its.it_value.tv_sec = 1;
-  its.it_value.tv_nsec = 0 * 1000000; // 1/2 sec
+  its.it_value.tv_nsec = 500 * 1000000;
   if (timer_settime(timerID, 0, &its, NULL)<0)
     logvalue(LOG_FILE,"\tErr nel setTimer\n");
 
   return 0;
 }
 /****************************************************/
+
 int pulsante(modbus_t *m,int bobina)
 {  
   char errmsg[100];
@@ -202,29 +178,6 @@ int pulsante(modbus_t *m,int bobina)
   ds.m = m;
   ds.b = bobina;
   makeTimer(&ds); // setta il timer per il rilasio del pulsante
-  
-  return 0;
-}
-
-int pulsanteOLD(modbus_t *m,int bobina)
-{  
-  char errmsg[100];
-  
-  if ( modbus_write_bit(m,bobina,TRUE) != 1 ) {
-    // The modbus_write_bit() function shall return 1 if successful. 
-    // Otherwise it shall return -1 and set errno.
-    sprintf(errmsg,"ERRORE DI SCRITTURA:PULSANTE ON %s\n",modbus_strerror(errno));
-    logvalue(LOG_FILE,errmsg);
-    return -1;
-  }
-  //makeTimer(bobina);
-  sleep(1);
-  
-  if ( modbus_write_bit(m,bobina,FALSE) != 1 ) {
-    sprintf(errmsg,"ERRORE DI SCRITTURA:PULSANTE OFF %s\n",modbus_strerror(errno));
-    logvalue(LOG_FILE,errmsg);
-    return -1;
-  }
   
   return 0;
 }
@@ -314,56 +267,22 @@ void daemonize()
   signal(SIGUSR1,SIG_IGN);
   signal(SIGHUP,signal_handler); /* catch hangup signal */
   signal(SIGTERM,signal_handler); /* catch kill signal */
-
   logvalue(LOG_FILE,"****************** START **********************\n");
 }
 
-#ifdef PIPPO
-void conn() {
-  /* Esegue la connessione al PLC e all'OTB */
-  char errmsg[100];
-  mb_plc = modbus_new_tcp("192.168.1.157",502);
-  mb_otb = modbus_new_tcp("192.168.1.11" ,502);
-  
-  if ( (modbus_connect(mb_plc) == -1 ))
-    {
-      sprintf(errmsg,"ERRORE non riesco a connettermi con il PLC %s\n",modbus_strerror(errno));
-      logvalue(LOG_FILE,errmsg);
-      myCleanExit(errmsg);
-      exit(EXIT_FAILURE);
-    } else {
-    logvalue(LOG_FILE,"\tConnesso con PLC\n");
-  }
-
-  if ( (modbus_connect(mb_otb) == -1))
-    {
-      sprintf(errmsg,"ERRORE non riesco a connettermi con l'OTB. Premature exit [%s]\n",modbus_strerror(errno));
-      logvalue(LOG_FILE,errmsg);
-      myCleanExit(errmsg);
-      exit(EXIT_FAILURE);
-    } else {
-    logvalue(LOG_FILE,"\tConnesso con OTB\n");
-  }
-
-}
-#endif
-
-uint16_t interruttore(modbus_t *m, uint16_t R, const uint8_t COIL, const uint8_t V) {
+uint16_t interruttore (modbus_t *m, uint16_t R, const uint8_t COIL, const uint8_t V) {
 
   /* ad ogni sua chiamata questa funzione inverte lo stato del bit COIL 
      nel registro R a seconda del valore di V: V=TRUE 0->1, V=FALSE 1>0 */
-  /* Usa la MaskWrite FC22 del modbus */
+  /*------------------------------------------*/  
+  /*---> Usa la MaskWrite FC22 del modbus <---*/
+  /*------------------------------------------*/
   /* V=TRUE se transizione da 0->1, V=FALSE se transizione da 1->0 */
   /* R num registro remoto (per OTB R = registro delle uscite ad indirizzo=100 */
   /* COIL il numero del BIT del registro R da mettere a 1 o a 0 in base al valore di V */
   
   char errmsg[100];
   uint16_t mask_coil;
-  
-  // uint16_t V = CHECK_BIT(R,COIL)?FALSE:TRUE;
-  
-  // uint16_t and_mask = ~BitMask[COIL]; 
-  // uint16_t or_mask = V ? BitMask[COIL] : ~BitMask[COIL];    
 
   mask_coil = (1<<COIL);
   uint16_t and_mask = ~mask_coil; 
@@ -385,7 +304,6 @@ uint16_t gestioneOTB() {
   if (oldvalbitOTB!=newvalbitOTB) {
     
     for (cur=0;cur<12;cur++) { // 12 num ingressi digitali OTB
-
       if (!CHECK_BIT(oldvalbitOTB,cur) && CHECK_BIT(newvalbitOTB,cur)) {
 	switch ( cur ) {
 	  /*----------------------------------------------------------------*/  
@@ -481,7 +399,6 @@ uint16_t gestioneIN0() {
     /*
       printbitssimple16(msg,oldvalbitIN0);
       mylog(LOG_FILE,"\t%s\n",msg);
-      
       printbitssimple16(msg,newvalbitIN0);
       mylog(LOG_FILE,"\t%s\n",msg);
     */
@@ -520,7 +437,8 @@ uint16_t gestioneIN0() {
 	    }
 	    modbus_free(mb_otb);	    
 	    break;
-	  }	  
+	  }
+	    
 	  case IN02: { // inserire num 4 nel registro 
 	    logvalue(LOG_FILE,"IN02 0->1\n");
 	    modbus_t *mb_plc = modbus_new_tcp("192.168.1.157" ,502);
@@ -537,6 +455,7 @@ uint16_t gestioneIN0() {
 	    // modbus_free(mb_otb);
 	    break;
 	  }
+
 	  case IN03: {
 	    logvalue(LOG_FILE,"IN03 0->1\n");
 	    break;
@@ -610,20 +529,19 @@ uint16_t gestioneIN0() {
 	    modbus_free(mb_otb);
 	    break;
 	}
-	  
-	case IN01: {
-	  	    modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
-	    if ( (modbus_connect(mb_otb) == -1 )) {
-	      sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno));
-	      logvalue(LOG_FILE,msg);
-	    } else {
-	      if (interruttore(mb_otb,100,FARI_ESTERNI_SOTTO,FALSE) == 0) { // 100 = regisro uscite OTB
-		logvalue(LOG_FILE,"\tFunzione interruttore avvenuta...1->0\n");
-	      }
-	      modbus_close(mb_otb);
-	    }
-	    modbus_free(mb_otb);
 
+	case IN01: {
+	  modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
+	  if ( (modbus_connect(mb_otb) == -1 )) {
+	    sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno));
+	    logvalue(LOG_FILE,msg);
+	  } else {
+	    if (interruttore(mb_otb,100,FARI_ESTERNI_SOTTO,FALSE) == 0) { // 100 = regisro uscite OTB
+	      logvalue(LOG_FILE,"\tFunzione interruttore avvenuta...1->0\n");
+	    }
+	    modbus_close(mb_otb);
+	  }
+	  modbus_free(mb_otb);	  
 	  break;
 	}
 	}
@@ -647,36 +565,6 @@ int main()
   int current_socket;
   int fdmax;
   
-#ifdef PIPPO
-  char msg[100];  
-  printbitssimple16(msg,1);
-  printf("1 --> %s\n",msg);
-  printbitssimple16(msg,2);
-  printf("2 --> %s\n",msg);
-  printbitssimple16(msg,4);
-  printf("4 --> %s\n",msg);
-  printbitssimple16(msg,8);
-  printf("8 --> %s\n",msg);
-  printbitssimple16(msg,16);
-  printf("16 --> %s\n",msg);
-  printbitssimple16(msg,32);
-  printf("32 --> %s\n",msg);
-  printbitssimple16(msg,64);
-  printf("64 --> %s\n",msg);
-  printbitssimple16(msg,128);
-  printf("128 --> %s\n",msg);
-  printbitssimple16(msg,256);
-  printf("256 --> %s\n",msg);
-  printbitssimple16(msg,512);
-  printf("512 --> %s\n",msg);
-  printbitssimple16(msg,1024);
-  printf("1024 --> %s\n",msg);
-  printbitssimple16(msg,2048);
-  printf("2048 --> %s\n",msg);
-  printbitssimple16(msg,1536);
-  printf("1536 --> %s\n",msg);  
-  return 0;
-#endif
   
   daemonize();
 
@@ -691,7 +579,6 @@ int main()
   }
 
   s = modbus_tcp_listen(ctx, 10);
-  //modbus_tcp_accept(ctx, &s);
 
   FD_ZERO(&rfds);
   FD_SET(s, &rfds);  
@@ -700,10 +587,6 @@ int main()
   oldvalbitOTB = newvalbitOTB;
   oldvalbitIN0 = newvalbitIN0;
 
-  // conn();
-
-  // makeTimer((uint8_t)8);  
-  // while(1) sleep(10);
   for(;;) {
     
     current_rfds = rfds;
@@ -767,20 +650,18 @@ int main()
 	  /////////////////////////////////////////////////
 	  int offset = modbus_get_header_length(ctx);
 	  /***** Estraggo il codice richiesta *****/
-	  // uint16_t reg_address = (query[offset + 1]<< 8) + query[offset + 2];		  
-	  
-	  // fprintf(stderr,"\tOffset: %i\n",query[offset]);
-	  
+	  uint16_t reg_address = (query[offset + 1]<< 8) + query[offset + 2];		  
+	  char msg[100];	  
+	  // sprintf(msg,"\tOffset: %i\n",query[offset]);
+	  // logvalue(LOG_FILE,msg);
 	  switch (query[offset]) {
-	  case 0x05: {/* il PLC sta chiedendo di scrivere BITS (non caèpita con il TWIDO)*/
-	    
-	    /*
-	      printf("\til PLC sta chiedendo di scrivere BITS\n");
-	      printf("\tCoil Registro %d-->%s [0x%02X]\n",
-	      reg_address,
-	      (mb_mapping->tab_bits[reg_address])?"ON":"OFF",
-	      query[offset]);
-	    */     
+	  case 0x05: {/* il PLC sta chiedendo di scrivere BITS (non concepita per il TWIDO)*/
+	    logvalue(LOG_FILE,"\til PLC sta chiedendo di scrivere BITS\n");
+	    sprintf(msg,"\tCoil Registro %d-->%s [0x%02X]\n",
+		    reg_address,
+		    (mb_mapping->tab_bits[reg_address])?"ON":"OFF",
+		    query[offset]);
+	    logvalue(LOG_FILE,msg);
 	  }
 	    break;
 	  case 0x10:
@@ -799,7 +680,7 @@ int main()
 	    newvalbitOTB=mb_mapping->tab_registers[OTBDIN];
 	    newvalbitIN0=mb_mapping->tab_registers[IN0];
 
-	    gestioneOTB(newvalbitOTB,oldvalbitOTB);
+	    gestioneOTB(newvalbitOTB,oldvalbitOTB); // gestione input OTB
 	    gestioneIN0(newvalbitIN0,oldvalbitIN0);	    
 
 	    oldvalbitOTB=newvalbitOTB;
