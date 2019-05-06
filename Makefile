@@ -2,8 +2,8 @@ SUFFIXES : .o.c
 
 CC = gcc
 # librerie e include per modbus
-INCDIR = /usr/local/include
-LIBDIR = /usr/local/lib
+INCDIR = /home/reario/include
+LIBDIR = /home/reario/lib
 
 INCDIRPQ = /usr/local/pgsql/include/
 LIBDIRPQ = /usr/local/pgsql/lib/
@@ -11,7 +11,7 @@ LIBDIRPQ = /usr/local/pgsql/lib/
 all: mbclient
 
 mbclient: mbclient.o 
-	$(CC) -Wall -L${LIBDIRPQ} -L${LIBDIR} -lpq -lmodbus -lm $^ -o $@
+	$(CC) -Wall -L${LIBDIRPQ} -L${LIBDIR} -lpq -lrt -lmodbus -lm $^ -o $@
 
 # vengono costruiti fli object
 .c.o: gh.h

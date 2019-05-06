@@ -30,10 +30,14 @@
 modbus_t *ctx = NULL; // listen socket
 
 //modbus_t *mb_otb = NULL;
-  
+
 int s = -1; // main socket
 modbus_mapping_t *mb_mapping = NULL; // registri del server
 
+typedef struct datasignal {
+  modbus_t *m;
+  uint8_t b;
+} datasignal_t;
 
 char *printbitssimple16(char *str, int16_t n) {
 
@@ -114,9 +118,95 @@ void mylog(char *filename, char *f, const char *message) {
   fclose(logfile);
   
 }
+/****************************************************/
+void buttonRelease(int sig, siginfo_t *si, void *uc) {
 
+  char msg[100];
+  modbus_t *mbus;
+  uint8_t B;
+  datasignal_t *dsig = (datasignal_t *)si->si_value.sival_ptr;
+  
+  mbus = dsig->m;
+  B = dsig->b;
+  /*  
+      logvalue(LOG_FILE,"SIGUSR1\n");
+      sprintf(msg,"\tDentro ButtonRelease [si->si_value.sival_ptr address] [%p] B [%u]\n",
+      (datasignal_t *)si->si_value.sival_ptr,B);
+      logvalue(LOG_FILE,msg);
+      sprintf(msg,"\tDentro ButtonRelease mbus address [%p] B [%u]\n",mbus,B);
+      logvalue(LOG_FILE,msg);
+  */
+  if ( modbus_write_bit(mbus,B,FALSE) != 1 ) {
+    sprintf(msg,"ERRORE DI SCRITTURA:PULSANTE OFF %s\n",modbus_strerror(errno));
+    logvalue(LOG_FILE,msg);
+    return;
+  } else { logvalue(LOG_FILE,"\tPulsante rilasciato...1->0\n");}
+	      
+  modbus_close(mbus);
+  modbus_free(mbus);
+}
 
+static int makeTimer( datasignal_t *dsignal)
+// dsig contiene il modbuscontex e il numero della bobina/bit
+{
+  struct sigevent te;
+  struct itimerspec its;
+  struct sigaction sa;
+  timer_t timerID;
+  int sigNo = SIGUSR1;
+
+  sa.sa_flags = SA_SIGINFO;
+  sa.sa_sigaction = buttonRelease;
+  sigemptyset(&sa.sa_mask);
+
+  if (sigaction(sigNo, &sa, NULL) == -1) {
+    logvalue(LOG_FILE,"sigaction\n");
+  }
+  
+  te.sigev_notify = SIGEV_SIGNAL;
+  te.sigev_signo = sigNo;
+  /*
+    char msg[100];
+    sprintf(msg,"\t ds. modbus add [%p] - Bobina [%u] -  ds address [%p]\n",dsignal->m,dsignal->b,dsignal);
+    logvalue(LOG_FILE,msg);
+  */
+  te.sigev_value.sival_ptr = dsignal;      // (modbus_t *)mbus;
+
+  if (timer_create(CLOCK_REALTIME, &te, &timerID)<0)
+    logvalue(LOG_FILE,"\tErr creazione Timer\n");
+  
+  its.it_interval.tv_sec = 0;
+  its.it_interval.tv_nsec = 0 * 1000000; // attivo solo una volta
+
+  its.it_value.tv_sec = 1;
+  its.it_value.tv_nsec = 0 * 1000000; // 1/2 sec
+  if (timer_settime(timerID, 0, &its, NULL)<0)
+    logvalue(LOG_FILE,"\tErr nel setTimer\n");
+
+  return 0;
+}
+/****************************************************/
 int pulsante(modbus_t *m,int bobina)
+{  
+  char errmsg[100];
+  static datasignal_t ds;
+  if (  modbus_write_bit(m,bobina,TRUE) != 1 ) {
+
+    sprintf(errmsg,"ERRORE DI SCRITTURA:PULSANTE ON %s\n",modbus_strerror(errno));
+    logvalue(LOG_FILE,errmsg);
+    return -1;
+  } else {
+    logvalue(LOG_FILE,"\tPulsante premuto...luci studio sotto 0->1\n");
+  } 
+
+  ds.m = m;
+  ds.b = bobina;
+  makeTimer(&ds); // setta il timer per il rilasio del pulsante
+  
+  return 0;
+}
+
+int pulsanteOLD(modbus_t *m,int bobina)
 {  
   char errmsg[100];
   
@@ -127,7 +217,7 @@ int pulsante(modbus_t *m,int bobina)
     logvalue(LOG_FILE,errmsg);
     return -1;
   }
-  
+  //makeTimer(bobina);
   sleep(1);
   
   if ( modbus_write_bit(m,bobina,FALSE) != 1 ) {
@@ -215,14 +305,16 @@ void daemonize()
   /* first instance continues */
   snprintf(str,(size_t)10,"%d\n",getpid());
   write(lfp,str,strlen(str)); /* record pid to lockfile */
-  
+
   signal(SIGCHLD,SIG_IGN); /* ignore child */
   signal(SIGTSTP,SIG_IGN); /* ignore tty signals */
   signal(SIGTTOU,SIG_IGN);
   signal(SIGTTIN,SIG_IGN);
   signal(SIGPIPE,SIG_IGN);
+  signal(SIGUSR1,SIG_IGN);
   signal(SIGHUP,signal_handler); /* catch hangup signal */
   signal(SIGTERM,signal_handler); /* catch kill signal */
+
   logvalue(LOG_FILE,"****************** START **********************\n");
 }
 
@@ -310,7 +402,7 @@ uint16_t gestioneOTB() {
 	case OTB_IN9: {
 	  logvalue(LOG_FILE,"Apertura Totale Cancello\n");
 	  if (FALSE) {
-	    modbus_t *mb_plc = mb_plc = modbus_new_tcp("192.168.1.157" ,502);
+	    modbus_t *mb_plc = mb_plc = modbus_new_tcp("192.168.1.157", 502);
 	    if ( (modbus_connect(mb_plc) == -1 )) {
 	      sprintf(msg,"ERRORE non riesco a connettermi con il PLC nella fase 0->1 [%s]\n",modbus_strerror(errno));
 	      logvalue(LOG_FILE,msg);
@@ -328,7 +420,7 @@ uint16_t gestioneOTB() {
 	case OTB_IN8: {
 	  logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
 	  if (FALSE) {
-	    modbus_t *mb_plc = modbus_new_tcp("192.168.1.157" ,502);
+	    modbus_t *mb_plc = modbus_new_tcp("192.168.1.157", 502);
 	    if ( (modbus_connect(mb_plc) == -1 )) {
 	      sprintf(msg,"ERRORE non riesco a connettermi con il PLC nella fase 0->1 [%s]\n",modbus_strerror(errno));
 	      logvalue(LOG_FILE,msg);
@@ -368,11 +460,10 @@ uint16_t gestioneOTB() {
 	  break;
 	}
 	}		      
-	// sprintf(msg,"\tBit %s (num. %i): 0->1\n",otbdigitalinputs[cur],cur);
-	// logvalue(LOG_FILE,msg);
       }
       if (CHECK_BIT(oldvalbitOTB,cur) && !CHECK_BIT(newvalbitOTB,cur)) {
-	// qui vanno messe le funzioni per la gestione 1->0 come per gli interruttori che devono invertire lo stato precedente
+	// qui vanno messe le funzioni per la gestione 1->0 come per gli
+	// interruttori che devono invertire lo stato precedente
       }
     } // for (cur=0;....)
   } // oldvalBIT != newvalBIT
@@ -387,13 +478,13 @@ uint16_t gestioneIN0() {
   modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
   
   if (oldvalbitIN0!=newvalbitIN0) {
-
-    printbitssimple16(msg,oldvalbitIN0);
-    mylog(LOG_FILE,"\t%s\n",msg);
-    
-    printbitssimple16(msg,newvalbitIN0);
-    mylog(LOG_FILE,"\t%s\n",msg);
-       
+    /*
+      printbitssimple16(msg,oldvalbitIN0);
+      mylog(LOG_FILE,"\t%s\n",msg);
+      
+      printbitssimple16(msg,newvalbitIN0);
+      mylog(LOG_FILE,"\t%s\n",msg);
+    */
     for (cur=0;cur<16;cur++) { // registro 16 bit
       if ( !CHECK_BIT(oldvalbitIN0,cur) && CHECK_BIT(newvalbitIN0,cur) )
 	{		
@@ -417,10 +508,33 @@ uint16_t gestioneIN0() {
 	    
 	  case IN01: {
 	    logvalue(LOG_FILE,"IN01 0->1\n");
+	    modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
+	    if ( (modbus_connect(mb_otb) == -1 )) {
+	      sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno));
+	      logvalue(LOG_FILE,msg);
+	    } else {
+	      if (interruttore(mb_otb,100,FARI_ESTERNI_SOTTO,TRUE) == 0) { // 100 = regisro uscite OTB
+		logvalue(LOG_FILE,"\tFunzione interruttore avvenuta...0->1\n");
+	      }
+	      modbus_close(mb_otb);
+	    }
+	    modbus_free(mb_otb);	    
 	    break;
 	  }	  
-	  case IN02: {
+	  case IN02: { // inserire num 4 nel registro 
 	    logvalue(LOG_FILE,"IN02 0->1\n");
+	    modbus_t *mb_plc = modbus_new_tcp("192.168.1.157" ,502);
+	    if ( (modbus_connect(mb_plc) == -1 )) {
+	      sprintf(msg,"ERRORE non riesco a connettermi con il PLC nella fase 0->1 [%s]\n",modbus_strerror(errno));
+	      logvalue(LOG_FILE,msg);
+	    } else {
+	      if (pulsante(mb_plc,LUCI_STUDIO_SOTTO) == -1) { // 100 = regisro uscite OTB
+		logvalue(LOG_FILE,"\tErrore Pulsante premuto...luci studio sotto 0->1\n");
+	      } 
+	      // modbus_close(mb_otb); // il rilascio del pulsante avviene dentro buttonRelease dove
+	      // sono chiuse le connessioni di mbus e liberata la memoria: mbus_free 
+	    }
+	    // modbus_free(mb_otb);
 	    break;
 	  }
 	  case IN03: {
@@ -481,8 +595,7 @@ uint16_t gestioneIN0() {
       if (CHECK_BIT(oldvalbitIN0,cur) && !CHECK_BIT(newvalbitIN0,cur)) {
 
 	switch ( cur ) {
-	case IN00: {
-	  
+	case IN00: {	  
 	    logvalue(LOG_FILE,"IN00 0->1\n");
 	    modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
 	    if ( (modbus_connect(mb_otb) == -1 )) {
@@ -496,22 +609,21 @@ uint16_t gestioneIN0() {
 	    }
 	    modbus_free(mb_otb);
 	    break;
-	  
-	  /* //////// */
-	  /* logvalue(LOG_FILE,"IN00 1->0\n"); */
-	  /* if ( (modbus_connect(mb_otb) == -1 )) { */
-	  /*   sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno)); */
-	  /*   logvalue(LOG_FILE,msg); */
-	  /* } else { */
-	  /*   logvalue(LOG_FILE,"\tConnesso con l'OTB\n"); */
-	  /*   interruttore(mb_otb,100,FARI_ESTERNI_SOPRA,FALSE); // 100 = regisro uscite OTB */
-	  /* }	   */
-	  /* break; */
-	  /* ////////// */
-	  
 	}
 	  
 	case IN01: {
+	  	    modbus_t *mb_otb = modbus_new_tcp("192.168.1.11" ,502);
+	    if ( (modbus_connect(mb_otb) == -1 )) {
+	      sprintf(msg,"ERRORE non riesco a connettermi con l'OTB nella fase 0->1 [%s]\n",modbus_strerror(errno));
+	      logvalue(LOG_FILE,msg);
+	    } else {
+	      if (interruttore(mb_otb,100,FARI_ESTERNI_SOTTO,FALSE) == 0) { // 100 = regisro uscite OTB
+		logvalue(LOG_FILE,"\tFunzione interruttore avvenuta...1->0\n");
+	      }
+	      modbus_close(mb_otb);
+	    }
+	    modbus_free(mb_otb);
+
 	  break;
 	}
 	}
@@ -534,8 +646,6 @@ int main()
   fd_set current_rfds;
   int current_socket;
   int fdmax;
-
-
   
 #ifdef PIPPO
   char msg[100];  
@@ -592,14 +702,22 @@ int main()
 
   // conn();
 
+  // makeTimer((uint8_t)8);  
+  // while(1) sleep(10);
   for(;;) {
     
     current_rfds = rfds;
     
     retval = select(fdmax+1,&current_rfds,NULL,NULL,NULL);
     if (retval == -1) {
-      logvalue(LOG_FILE,"Err: select() failure\n");
-      exit(-1);
+      if (errno == EINTR) {
+	continue;
+      } else {
+	char msg[50];
+	sprintf(msg,"Err: select() failure %i\n",errno);
+	logvalue(LOG_FILE,msg);
+	exit(-1);
+      }
     }
     
     for (current_socket = 0; current_socket <= fdmax; current_socket++) {	
