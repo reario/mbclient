@@ -4,6 +4,8 @@
 #define LOG_FILE        "/home/reario/mbclient/mbclient.log"
 
 #define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
+#define LOCK(se) while ( sem_wait((se)) == -1 && errno == EINTR ) continue
+#define UNLOCK(se) sem_post((se))
 /*---------------------*/
 
 /* NUMERI DELLE BOBINE SUL PLC DEI PULSANTI COMANDABILI DA ESTERNO: MAGELIS, INTERFACCIA A CARATTERI */

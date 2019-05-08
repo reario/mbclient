@@ -8,12 +8,15 @@ LIBDIR = /home/reario/lib
 INCDIRPQ = /usr/local/pgsql/include/
 LIBDIRPQ = /usr/local/pgsql/lib/
 
-all: mbclient
+all: mbclient t
+
+t: t.o
+	$(CC) -Wall -L${LIBDIRPQ} -L${LIBDIR} -lpq -lpthread -lrt -lmodbus -lm $^ -o $@
 
 mbclient: mbclient.o 
-	$(CC) -Wall -L${LIBDIRPQ} -L${LIBDIR} -lpq -lrt -lmodbus -lm $^ -o $@
+	$(CC) -Wall -L${LIBDIRPQ} -L${LIBDIR} -lpq -lrt -lpthread -lmodbus -lm $^ -o $@
 
-# vengono costruiti fli object
+# vengono costruiti file object
 .c.o: gh.h
 	$(CC) -c -g -Wall -DDOINSERT3 -I${INCDIRPQ} -I$(INCDIR)/modbus $< -o $@
 

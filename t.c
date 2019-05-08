@@ -4,9 +4,17 @@
 #include <sys/time.h>
 #include <time.h>
 #include <signal.h>
+#include <signal.h>
+#include <semaphore.h>
 #include <string.h>
-
+#include <errno.h>
 char *LOG_FILE = "/home/reario/mbclient/t.log";
+
+sem_t sem_otb;
+sem_t sem_plc;
+
+#define LOCK(se) while ( ( s = sem_wait((se))) == -1 && errno == EINTR ) continue
+#define UNLOCK(se) sem_post((se))
 
 int ts(char * tst, char * fmt)
 {
@@ -74,6 +82,12 @@ void signal_handler(int sig, siginfo_t *si, void *uc)
     B==1?sprintf(msg,"\tBobina %u\n",B):sprintf(msg,"\tBobina %u\n---------\n",B);
     logvalue(LOG_FILE,msg);
     break;
+
+  case SIGUSR1:
+    logvalue(LOG_FILE,"\tcatched SIGUSR1 trying to unlock semaphore sem_otb\n");
+    //sem_post(&sem_otb); // unlock
+    UNLOCK(&sem_otb);
+    break;
   }
 }
 
@@ -84,11 +98,11 @@ static int makeTimer( uint8_t BOBINA, int expireMS,
   struct itimerspec its;
   struct sigaction sa;
   timer_t timerID;
-  int sigNo = SIGALRM;
+  int sigNo = SIGUSR1;
   
   /* Set up signal handler. */
   sa.sa_flags = SA_SIGINFO;
-  sa.sa_sigaction = buttonRelease;
+  sa.sa_sigaction = signal_handler;
   sigemptyset(&sa.sa_mask);
   if (sigaction(sigNo, &sa, NULL) == -1) {
     perror("sigaction");
@@ -104,7 +118,7 @@ static int makeTimer( uint8_t BOBINA, int expireMS,
   its.it_interval.tv_sec = 0;
   its.it_interval.tv_nsec = intervalMS * 1000000;
 
-  its.it_value.tv_nsec = 0;
+  its.it_value.tv_sec = 5;
   its.it_value.tv_nsec = expireMS * 1000000;
   timer_settime(timerID, 0, &its, NULL);
   
@@ -113,25 +127,32 @@ static int makeTimer( uint8_t BOBINA, int expireMS,
 
 int main() {
 
+  sem_init(&sem_otb, 0, 2);
+  sem_init(&sem_plc, 0, 2);
+  
+  sem_wait(&sem_otb); // == -1 && errno == EINTR) continue;
+  sem_wait(&sem_otb); //== -1 && errno == EINTR) continue;
+  
+  logvalue(LOG_FILE,"Start program....\n");
+  makeTimer(2,0,0);
+  int s;
+  //while ( (s = sem_wait(&sem_otb) ) == -1 && errno == EINTR) continue;
+  LOCK(&sem_otb);
+  if(s == 0) {
+    logvalue(LOG_FILE,"\tnot interrupted\n");
+    logvalue(LOG_FILE,"unlocked otb\n");  
+      } else {
+    logvalue(LOG_FILE,"\tinterrupted on wait server sem\n");
+  }
+  
+    
+  return 0;
+  
+#ifdef PLUTO
   makeTimer(1,900,0); 
   makeTimer(2,500,0);
   
-  while(1) sleep(10);
-
-
-
-
-
-
-
-
-
-
-
-
-  
-  
-#ifdef PLUTO
+  while(1) sleep(10);  
   //-----------------------------
   struct sigaction act;  
   memset (&act, '\0', sizeof(act));
