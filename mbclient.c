@@ -30,6 +30,7 @@
 modbus_t *ctx = NULL; // listen socket
 modbus_mapping_t *mb_mapping = NULL; // registri del server
 int s = -1; // main socket
+
 typedef struct datasignal {
   modbus_t *m; // la connessione al device
   uint8_t b; // la bobina o il registro
@@ -332,11 +333,11 @@ uint16_t gestioneOTB() {
 	}
 	  /*----------------------------------------------------------------*/  
 	case OTB_IN9: {
+	  // l'ingresso 9 di otb è stato chiuso, attivo l'uscita del plc per aprire il cancello totale
 	  logvalue(LOG_FILE,"Apertura Totale Cancello\n");
 	  if (FALSE) {
 	    modbus_t *mb_plc = mb_plc = modbus_new_tcp("192.168.1.157", 502);
-	    // while ( sem_wait(&sem_plc) == -1 && errno == EINTR) continue;
-	    
+	    // while ( sem_wait(&sem_plc) == -1 && errno == EINTR) continue;	    
 	    LOCK(&sem_plc);
 	    if ( (modbus_connect(mb_plc) == -1 )) {
 	      sprintf(msg,"ERRORE non riesco a connettermi con il PLC nella fase 0->1 [%s]\n",modbus_strerror(errno));
@@ -351,6 +352,7 @@ uint16_t gestioneOTB() {
 	}
 	  /*----------------------------------------------------------------*/  
 	case OTB_IN8: {
+	  // l'ingresso 9 di otb è stato chiuso, attivo l'uscita del plc per aprire il cancello parziale
 	  logvalue(LOG_FILE,"Apertura Parziale Cancello\n");
 	  if (FALSE) {
 	    modbus_t *mb_plc = modbus_new_tcp("192.168.1.157", 502);
